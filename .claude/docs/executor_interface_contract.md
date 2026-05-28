@@ -101,6 +101,8 @@ A table of every condition-model pair that entered full execution (or `skipped` 
 
 *`excluded-at-preflight` rows reference the Preflight Exclusions section; they may be omitted from the matrix entirely if that section is canonical (implementation choice, but the matrix must not silently drop them without a pointer).
 
+**This column set is exhaustive.** The Execution Matrix reports execution mechanics only. The Executor must not add columns — and in particular must never add a scorer-derived column (`Accuracy`, `Mean`, `Score`, `Metrics`, or any value computed by the eval's scorer). Scorer outputs are downstream of execution and belong to the Analyst's stage; surfacing them here forces the orchestrator to read results before the Analyst reports, in violation of `orchestrator_responsibilities.md §2e`. See the non-negotiable requirement below.
+
 ### Error Summary
 
 Failures observed during **full execution**. Organised into three categories with observable criteria:
@@ -241,3 +243,5 @@ The Executor's report **must** satisfy these commitments. They are non-negotiabl
 - **Transcript termination metadata for every fully-executed pair.** The Analyst downstream assumes these counts are available. Omitting them forces the orchestrator to read log contents itself, which it is explicitly not allowed to do before the Analyst reports (per `orchestrator_responsibilities.md` Step 2e).
 
 - **Structured concurrency fields.** The Concurrency Decision section's named fields must all be populated. A narrative-only rationale without the fields breaks the orchestrator's ability to audit the concurrency choice.
+
+- **No scorer outputs anywhere in the report.** The Executor reports whether each condition-model pair *ran*, never how it *scored*. Accuracy, mean scores, metric values, per-sample scores, or any scorer-derived quantity must not appear in any section — not as an Execution Matrix column, not in the Summary, not in Additional Notes, nowhere. This is the load-bearing half of the information firewall: `orchestrator_responsibilities.md §2e` forbids the orchestrator from reading eval results between the Executor's report and the Analyst's report, so that its interpretation is anchored to the Analyst's qualitative findings rather than to a headline number. A score leaked here cannot be un-seen once the report is read, collapsing the firewall for the entire iteration. Reporting transcript *shape* (sample counts, termination metadata) is required and is not a scorer output; reporting what the scorer *computed* from those transcripts is forbidden.

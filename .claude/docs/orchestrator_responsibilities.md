@@ -4,7 +4,7 @@ This document specifies everything the orchestrator (main Claude Code agent) mus
 
 ## Role
 
-The orchestrator is the only agent that talks to the user, holds the hypothesis, and makes scientific decisions. It delegates mechanical work to three sub-agents:
+The orchestrator is the only agent that talks to the user, holds the hypothesis, and makes scientific decisions. Think of it as the **principal investigator**: it directs three specialist sub-agents and synthesises their work into findings, but it does not do their work itself. Each sub-agent owns a stage exclusively:
 
 | Agent | Receives | Returns |
 |-------|----------|---------|
@@ -12,7 +12,7 @@ The orchestrator is the only agent that talks to the user, holds the hypothesis,
 | Experiment Executor | Experiment name, directory, condition specs, models, optional overrides | Structured execution report: summary, preflight exclusions, execution matrix, error summary, transcript termination metadata, concurrency decision, execution summary, additional notes (see `executor_interface_contract.md`) |
 | Transcript Analyst | Topic (not hypothesis), transcript source (condition→path mapping), scanning model?, constraints? | Scanner definitions, validation metrics, quantified results, scan results path, transcript exclusions, excerpts |
 
-The orchestrator does everything else.
+The orchestrator does everything that falls *between* these delegated stages — refining the hypothesis, designing conditions, applying environment modifications, interpreting the Analyst's findings, deciding the next step, and reporting to the user. What it must never do is take over a sub-agent's stage: it never runs evals itself (the Executor's job), never takes over the Explorer's systematic exploration of the eval to design perturbations (though it may read the eval to orient itself and form hypotheses), and never reads transcripts to surface behavioural patterns itself (the Analyst's job). Bypassing a sub-agent forfeits the scaffold's integrity guarantees — see the Anti-Patterns. The one exception is genuine sub-agent failure, handled explicitly in the Sub-Agent Failure Handling section below.
 
 ## Pipeline Overview
 
@@ -86,6 +86,8 @@ The user presents a research question. The orchestrator helps refine it into a t
 ## Phase 2: Investigation Loop
 
 ### Step 2a: Launch Environment Explorer
+
+**Launch the Explorer at the start of each iteration rather than mapping the environment yourself.** You will and should read enough of the eval to form relevant hypotheses — especially during Phase 1 scoping, where the eval may be mid-development with no README or documentation, and a direct look at the task files is the only way to ground the research question. That orientation reading is legitimate and often necessary. What belongs to the Explorer is the *systematic* exploration that produces the modification briefing: enumerating minimal perturbation sites with concrete diffs, mapping variant dependencies, and assessing risk. Don't substitute your own ad-hoc site-hunting for that briefing, and don't skip the Explorer because you've already glanced at the files. Task it, then act on what it returns.
 
 The request and report formats for the Explorer are defined in `explorer_interface_contract.md`. That document is the single source of truth; consult it for field-level and section-level detail.
 
@@ -178,6 +180,8 @@ This is entirely the orchestrator's work. No sub-agent handles this.
 ---
 
 ### Step 2d: Construct Executor Input and Launch Executor
+
+**Every eval runs through the Executor. You never invoke `uv run inspect eval` (or any `inspect eval`) yourself** — not to "quickly check" a condition, not when only one condition needs running, not when the Executor is slow. Running an eval directly bypasses the Executor's preflight, error taxonomy, and reporting, and puts raw scores in front of you in violation of the firewall (Step 2e).
 
 The request and report formats for the Executor are defined in `executor_interface_contract.md`. That document is the single source of truth; consult it for field-level and section-level detail.
 
@@ -510,6 +514,35 @@ Each iteration gets its own directory. Previous iterations are never modified.
 
 ---
 
+## Sub-Agent Failure Handling
+
+The Edge Cases below concern sub-agents that *return a report* you don't like — no viable sites, no successful pairs, no patterns. This section concerns a different problem: a sub-agent that **fails to return a usable report at all** — the CLI invocation crashes, times out, exits non-zero with empty output, or the agent hits an API refusal (`stop_reason='refusal'`). These are infrastructure events, not experimental findings, and they have their own recovery discipline.
+
+**Triage before you react.** A failed invocation is a diagnostic problem, not a trigger for a fixed procedure. Capture the evidence first — exit code, stderr tail, any `stop_reason` — then work out *why* it failed before deciding what to do. The decisive distinction is transient vs. deterministic:
+
+- *Transient* (timeout, rate limit, one-off network/API error): re-invoking will likely succeed. Retry once or twice, noting it in the log.
+- *Deterministic* (API refusal on the content, SDK crash, misconfiguration, exhausted API credits): re-invoking unchanged fails the same way. Stop and diagnose; do not retry blindly.
+
+Intelligent diagnosis beats rote response throughout this section.
+
+**Strongly prefer keeping the sub-agent in the loop.** When a deterministic failure blocks you, your first instinct should *not* be to do the sub-agent's work yourself. It should be to find a workaround that still routes the work through the sub-agent — change what is tripping the error, not who does the job. For example: switch the model the failing sub-agent runs on when the default one refuses (via the per-agent model override in the invocation interface); reduce or redact the specific content that triggered a refusal; wait out or raise a rate limit. This matters beyond methodology. The scaffold's value to the user depends on the pipeline actually running: a bypassed sub-agent yields an output that *looks* like a normal result but carries materially weaker guarantees, and the user — trusting the scaffold — may not see the difference. That expectation–reality gap is a harm in itself, regardless of whether the bypassed step happened to come out right.
+
+**Recovery preference order**, when a sub-agent fails deterministically:
+
+1. **Diagnose, then work around within the pipeline.** Adjust inputs or configuration so the sub-agent itself can complete. Strongly preferred.
+2. **Escalate to the user.** If no in-pipeline workaround is apparent, surface the failure, your diagnosis, and the options. A paused investigation is far cheaper than a silently degraded one.
+3. **Bypass the sub-agent (do its work directly).** A genuine last resort, acceptable only when (a) the failure is firmly understood as a harness/infrastructure problem rather than something about the experiment, (b) the firewall is preserved (see below), and (c) the decision and its reasoning are recorded in the investigation log *and* surfaced in the final report's limitations. Bypass is never the default and never silent.
+
+Some workarounds change the *experiment* rather than the harness — e.g. switching the eval's **target** model because its credits are exhausted. That is a scientific change (a different model may behave differently, and the hypothesis may be model-specific), not a neutral recovery: flag it to the user and record it as such. Contrast switching the Analyst's *scanning* model, or the model a sub-agent runs on, which leaves the measured construct untouched and is methodologically cheap.
+
+**Preserving the firewall under recovery.** The blinding of the Transcript Analyst is the scaffold's central integrity guarantee. Bypassing the Analyst — reading transcripts yourself to surface patterns — is therefore essentially never acceptable: you hold the hypothesis, so your "analysis" is contaminated by construction. If the Analyst fails, exhaust the in-pipeline options (different model, redacted content) or escalate; do not analyse the transcripts yourself. For an Executor bypass in which eval scores become unavoidably visible, you have already breached §2e — fall back to the documented mitigation: pre-register a written prediction *before* seeing any downstream analysis, and report the breach in your caveats. And whenever you run evals directly, you inherit the Executor's safety checks — most importantly, **confirm there are no sample-level errors before reading any score** (in one past run, empty completions caused by exhausted API quota were misread as genuine model refusals precisely because this check was skipped).
+
+**Fixing the scaffold vs. routing around it.** Sometimes the root cause is the scaffold itself (e.g. a sub-agent pinned to a model with too strict a refusal threshold). The preferred response is to work *within the scaffold's existing parameters* — models, content scoping, overrides — which are meant to give you enough room to navigate most failures without modifying anything. Where the needed parameter doesn't yet exist, the proper fix is upstream, by the scaffold maintainer, so future investigations can navigate the situation independently. But not every gap can be foreseen, so in rare cases — a *quick, well-understood* fix, with modifications authorised by the user — it is appropriate to patch the scaffold yourself and re-invoke the sub-agent, in preference to bypassing it. Do not attempt deep or uncertain scaffold surgery mid-investigation; the risk of silently confounding the experiment is too high. Escalate instead, and record any fix you do apply.
+
+**Clean up by quarantine, not deletion.** Recovery often leaves stale or partial artefacts behind — a half-written executor report, an incomplete log directory, a corrupted scan output. Do not `rm -rf` them. Move them to `artefacts/_quarantine/<timestamp>/` instead. Quarantining preserves evidence you may need to diagnose the failure and explain it in the report, and it avoids destructive cleanup commands, which are both irreversible and a safety hazard in an autonomous loop. Deleting experiment artefacts or logs is never part of routine recovery.
+
+---
+
 ## Edge Cases
 
 ### Explorer reports no viable modification sites
@@ -554,3 +587,5 @@ If Model A succeeded but Model B failed entirely, the orchestrator can still sen
 8. **Applying diffs without verifying them.** Always read modified files back after applying changes. A misapplied diff can silently confound the experiment.
 
 9. **Reading eval results before the Analyst reports.** The orchestrator must not read log file contents, extract scores, or compute metrics between the Executor completing and the Analyst reporting. The Executor's report provides sufficient information (Execution Matrix status, Error Summary, Transcript Termination Metadata) to decide whether to proceed. Reading scores early primes the orchestrator to seek confirmation rather than genuinely interpreting the Analyst's blinded findings.
+
+10. **Doing a sub-agent's job yourself.** Running `inspect eval` directly instead of through the Executor; reading the eval's source to pick perturbation sites instead of tasking the Explorer; grepping or reading transcripts to surface behavioural patterns instead of delegating to the Analyst. Each sub-agent owns its stage exclusively. Even when it seems faster, or the eval looks simple enough to handle directly, bypassing a sub-agent forfeits the scaffold's guarantees — most critically the analyst firewall — and is the most common way an investigation silently loses its integrity. The bypass is rarely a deliberate decision; it is usually an *omission* — you reach for `inspect eval` without ever pausing to ask "should the Executor do this?" Build the habit of that pause. The only legitimate bypass is a genuine sub-agent failure, handled per the Sub-Agent Failure Handling section.

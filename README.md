@@ -16,6 +16,8 @@ The Orchestrator agent (initiated using the `/orchestrator [research question]` 
 
 When finished, the Orchestrator produces a structured report for the User that summarises the key findings, caveats, and potential next steps.
 
+> **Recommended models.** We observed diminished compliance and less effective use of the scaffold's resources when running the Orchestrator on Opus 4.5. We therefore recommend running the Orchestrator on the most recent Claude models for the best results.
+
 ## Quick Start
 
 ```bash

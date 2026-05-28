@@ -8,7 +8,6 @@ from subagents.transcript_analyst.system_prompt import SYSTEM_PROMPT
 
 ALLOWED_TOOLS = ["Bash", "Read", "Write", "Glob", "Grep"]
 DISALLOWED_TOOLS = ["Edit", "WebSearch", "WebFetch"]
-MEMORY_FILE = "subagents/transcript_analyst/memory.md"
 
 # Files this agent must not read. Mapping of filename pattern → reason.
 RESTRICTED_FILES: dict[str, str] = {
@@ -51,6 +50,12 @@ async def run_transcript_analyst(cwd: str | None = None, **data: Any) -> str:
         agent_name="Transcript analyst",
         cwd=cwd,
         restricted_files=RESTRICTED_FILES,
-        memory_file=MEMORY_FILE,
+        # The Transcript Analyst is deliberately stateless across invocations:
+        # no memory file, so no findings can leak between investigations and
+        # the hypothesis firewall holds by construction. Generalisable Scout
+        # craft lives in `.claude/docs/scout_reference.md` instead. (The memory
+        # mechanism in runner.py remains available for other sub-agents.)
+        memory_file=None,
         restrict_writes_to_memory=False,
+        model=data.get("subagent_model"),
     )

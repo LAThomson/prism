@@ -51,4 +51,5 @@ async def run_environment_explorer(cwd: str | None = None, **data: Any) -> str:
         cwd=cwd,
         restricted_files=RESTRICTED_FILES,
         memory_file=None,
+        model=data.get("subagent_model"),
     )

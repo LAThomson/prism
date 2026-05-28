@@ -15,6 +15,12 @@ from claude_agent_sdk import (
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Model every sub-agent runs on unless the invocation overrides it via the
+# `subagent_model` input field. Kept as a single default so the override is the
+# only thing that ever varies (e.g. a less refusal-prone model on a
+# dangerous-capability eval, or a cheaper/weaker model on the user's request).
+DEFAULT_MODEL = "claude-opus-4-6"
+
 _MEMORY_INSTRUCTIONS = """\
 ## Agent Memory
 
@@ -137,6 +143,7 @@ async def run_agent(
     restricted_files: dict[str, str] | None = None,
     memory_file: str | None = None,
     restrict_writes_to_memory: bool = True,
+    model: str | None = None,
 ) -> str:
     """Run an Agent SDK agent and return its output.
 
@@ -156,6 +163,11 @@ async def run_agent(
         restrict_writes_to_memory: If True (default), block all writes
             except to memory.md. Set to False for agents that need general
             write access (e.g., the transcript analyst writing scripts).
+        model: The Claude model this sub-agent runs on. If None, falls back
+            to DEFAULT_MODEL. Set per-invocation (via the `subagent_model`
+            input field) to override the default — e.g. a less refusal-prone
+            model on a dangerous-capability eval, or a cheaper model on
+            request.
 
     Returns:
         The agent's output as a string.
@@ -195,7 +207,7 @@ async def run_agent(
         allowed_tools = [*allowed_tools, "Write"]
 
     options = ClaudeAgentOptions(
-        model="claude-opus-4-6",
+        model=model or DEFAULT_MODEL,
         system_prompt=system_prompt,
         allowed_tools=allowed_tools,
         disallowed_tools=disallowed_tools,

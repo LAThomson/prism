@@ -116,15 +116,17 @@ unlink_file "subagents/experiment_executor/system_prompt.py"
 unlink_file "subagents/transcript_analyst/__init__.py"
 unlink_file "subagents/transcript_analyst/agent.py"
 unlink_file "subagents/transcript_analyst/main.py"
-unlink_file "subagents/transcript_analyst/memory.md"
 unlink_file "subagents/transcript_analyst/system_prompt.py"
 
 # .claude/docs
 unlink_file ".claude/docs/analyst_delegation_guide.md"
 unlink_file ".claude/docs/analyst_interface_contract.md"
 unlink_file ".claude/docs/eval_science_principles.md"
+unlink_file ".claude/docs/executor_interface_contract.md"
+unlink_file ".claude/docs/explorer_interface_contract.md"
 unlink_file ".claude/docs/inspect_reference.md"
 unlink_file ".claude/docs/orchestrator_responsibilities.md"
+unlink_file ".claude/docs/scout_reference.md"
 unlink_file ".claude/docs/subagent_invocation.md"
 
 # .claude/skills/orchestrator
