@@ -197,7 +197,9 @@ fi
 
 # --- Patch devcontainer.json to mount the scaffold repo ---
 DEVCONTAINER="$TARGET_DIR/.devcontainer/devcontainer.json"
+DEVCONTAINER_PATCHED=0
 if [ -f "$DEVCONTAINER" ]; then
+    DEVCONTAINER_PATCHED=1
     echo ""
     echo "Patching devcontainer.json..."
 
@@ -279,10 +281,24 @@ echo ""
 echo "Installation complete."
 echo ""
 echo "Next steps:"
-echo "  1. Open the target repo in VS Code and accept the devcontainer prompt"
-echo "  2. Copy or create .claude/settings.local.json with your local overrides"
-echo "  3. Ensure ANTHROPIC_API_KEY is set in your environment"
-echo "  4. Launch the orchestrator: /orchestrator [research question]"
+step=1
+echo "  $step. Ensure Claude Code is installed (https://claude.com/product/claude-code)"
+step=$((step + 1))
+if [ "$DEVCONTAINER_PATCHED" = "1" ]; then
+    echo "  $step. Reopen the target repo in its devcontainer so the scaffold mount"
+    echo "      takes effect (e.g. VS Code's \"Reopen in Container\", or your tool's equivalent)"
+    step=$((step + 1))
+else
+    echo "  $step. Make the scaffold available at $CONTAINER_SCAFFOLD wherever Claude Code"
+    echo "      runs (the installed symlinks resolve to that path)"
+    step=$((step + 1))
+fi
+echo "  $step. Add your API keys to a .env file in the target repo: ANTHROPIC_API_KEY"
+echo "      is required; OPENAI_API_KEY only if your eval or grader uses OpenAI"
+step=$((step + 1))
+echo "  $step. (Optional) create .claude/settings.local.json for local overrides"
+step=$((step + 1))
+echo "  $step. Launch the orchestrator in Claude Code: /orchestrator [research question]"
 echo ""
 echo "Tip: run the Orchestrator on the most recent Claude model available —"
 echo "we observed weaker scaffold compliance on older models (e.g. Opus 4.5)."
