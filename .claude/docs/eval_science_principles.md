@@ -1,6 +1,8 @@
 # Methodological Reference: Science of Evaluations
 
-This document contains summaries of seven papers that collectively inform rigorous science-of-evaluations work. The object of study is the evaluation itself, not the model being evaluated. These summaries distill principles that improve the quality of hypothesis formulation, experimental design, and interpretation of findings. They are drawn from the methodological literature on scientific inference, behavioural research, AI evaluation validity, and benchmark design.
+This document contains summaries of nine papers that collectively inform rigorous science-of-evaluations work. The object of study is the evaluation itself, not the model being evaluated. These summaries distill principles that improve the quality of hypothesis formulation, experimental design, and interpretation of findings. They are drawn from the methodological literature on scientific inference, behavioural research, AI evaluation validity, and benchmark design.
+
+The framing of evaluations as a discipline requiring its own scientific standards was introduced to the AI safety community by Apollo Research's *We Need A Science of Evals* (2024), which catalogued the field's prevailing methodological deficits — prompt sensitivity, opaque construct definitions, absent statistical guarantees, format-dependent metrics — and called for explicit standards. That post is a position piece rather than a primary methodological source; the corpus below provides the substantive techniques on which an investigation can draw.
 
 Each summary explains what the paper argues, then extracts the principles most relevant to studying evaluations as scientific objects.
 
@@ -21,6 +23,8 @@ Platt warned against two failure modes. The first is what he called "The Frozen 
 **Competing hypotheses are the unit of progress.** An experiment that cannot distinguish between two explanations has not advanced understanding, regardless of how many observations it produces. The value of an investigation cycle is measured by how many hypotheses it eliminates, not by how many patterns it surfaces.
 
 **Falsifiability is a prerequisite, not a bonus.** If a prediction cannot be stated in a form where some observable outcome would make it wrong, it is not ready to be tested. Vague directional expectations ("we expect to see interesting differences") do not qualify.
+
+**Falsifiability requires statistical power.** A null result is informative only if the experiment had the sensitivity to detect the effect it was looking for. Without sufficient samples and a pre-specified analysis, "no effect observed" cannot be distinguished from "effect too small for this design." Reporting effect sizes with uncertainty, rather than only pass-or-fail tests, makes the distinction explicit (Card et al., 2023, *With Little Power Comes Great Responsibility*).
 
 **Technique attachment is a silent failure mode.** When the same kind of manipulation (e.g., prompt-level cue variation) appears in every cycle, the question to ask is whether the research question demands it or whether a familiar method has become the default. The method should follow the question, not the other way around.
 
@@ -66,35 +70,89 @@ A key finding: benchmarks that fail on construct validity are not merely impreci
 
 ### Principles
 
-**Every evaluation study begins with five validity questions.** (1) What construct does this evaluation claim to measure, and is this claim stated explicitly? (2) Do the evaluation items actually test for that construct, or could a model score well for unrelated reasons? (3) Does the evaluation setting resemble the deployment setting the construct is meant to predict? (4) Would a different evaluation of the same construct produce similar results? (5) Could the evaluation be measuring a different construct entirely?
+**Every evaluation study begins with five validity questions.** (1) What construct does this evaluation claim to measure, and is this claim stated explicitly? (2) Do the evaluation items actually test for that construct, or could a model score well for unrelated reasons? (3) Does the evaluation setting resemble the deployment setting the construct is meant to predict? (4) Would a different evaluation of the same construct produce similar results? (5) Could the evaluation be measuring a different construct entirely? Operationalising these questions empirically — by manipulating environmental factors and measuring how they shift behaviour — is the subject of §5.
 
 **The gap between an evaluation's stated construct and its actual construct is itself a finding.** This is the core of science-of-evaluations work. When an evaluation labelled "safety" primarily measures instruction-following, or an evaluation labelled "reasoning" primarily measures memorisation, documenting that discrepancy advances the field's understanding of its own tools.
+
+**What an evaluation measures depends on the elicitation regime under which it is run.** Reported capability scores are conditional on a specific prompting strategy, inference-time compute budget, and any fine-tuning interventions. Two different elicitation regimes applied to the same evaluation can produce qualitatively different conclusions about what the model "can" do. When studying an evaluation, the elicitation regime under which its headline numbers were obtained is itself part of what the evaluation measures (Apollo Research, *We Need A Science of Evals*, 2024).
 
 **Evaluation flaws should be characterised, not fixed.** The role of evaluation science is to study evaluations as they exist in the field, not to engineer improved versions. Cleaning up an evaluation before studying it changes the object of study. Known flaws should be documented and treated as potential confounds when interpreting results. If a specific flaw drives the majority of the observed behavioural variation, that discovery is itself the contribution.
 
 ---
 
-## 4. Mainstream Approach for Alignment Evals is a Dead End
+## 4. UK AISI Alignment Evaluation Case-Study
 
-**Source:** Ivanov, I. (2026). Mainstream approach for alignment evals is a dead end. LessWrong. https://www.lesswrong.com/posts/GctsnCDxr73G4WiTq/
+**Source:** Souly, A., Kirk, R., Merizian, J., D'Cruz, A., Davies, X. (2026). UK AISI Alignment Evaluation Case-Study. arXiv:2604.00788. UK AI Security Institute.
 
 ### What this paper argues
 
-Ivanov presents the case that the dominant strategy for alignment evaluation, creating increasingly realistic scenarios and hoping models do not detect they are being evaluated, faces a structural problem that cannot be solved by incremental improvements to realism. He documents the key empirical puzzle: when Anthropic tested Claude Sonnet 4.5, misalignment dropped to approximately 0% on synthetic honeypots, but the model mentioned being evaluated in over 80% of transcripts. When activation steering was used to suppress eval awareness features, misalignment reappeared. The evaluations were measuring eval awareness, not alignment.
+The concern that frontier models detect being evaluated and adjust their behaviour accordingly — sometimes called *eval awareness* — was articulated in strong form by Ivanov (2026, *Mainstream approach for alignment evals is a dead end*, LessWrong, position blog post), who argued that current evaluations were measuring eval awareness rather than alignment and that incremental improvements in realism could not close the gap. Souly et al. sharpen this empirically. Studying misalignment behaviours across several frontier models, they split eval awareness into two components that behave very differently: **task-driven** awareness, arising from features intrinsic to the test scenario (the high-stakes character of a sabotage prompt, the unusual stakes of self-preservation tasks), and **environment-driven** awareness, arising from features of the surrounding tooling, prompts, and scaffolding. They show environment-driven awareness can be measurably reduced through better scaffolding — under their improved scaffolding, models classify benign deployment-like trajectories as eval-like at near-chance accuracy. Task-driven awareness, by contrast, persists: on high-stakes sabotage scenarios, even their best scaffolding leaves models discriminating eval from deployment at roughly 70–75% accuracy.
 
-Ivanov identifies several structural reasons why "just make it more realistic" fails. First, we cannot enumerate all features that make a scenario look like an evaluation. Second, ablating the cues that models self-report as causing awareness does not eliminate awareness. Third, hand-crafted evaluation scenarios are distributional outliers even when every individual feature is plausible, because the joint distribution of features differs from genuine deployment.
+A second key finding is a gap between **unprompted** and **prompted** awareness. Models mention being evaluated in only 12–36% of unprompted transcripts, but reach 70–75% accuracy when explicitly asked to discriminate evaluation from deployment. The capability to recognise an eval exceeds the propensity to verbalise that recognition; unprompted-mention metrics systematically underestimate awareness.
+
+Read together, the two findings partially contradict Ivanov's terminal verdict — environment realism *is* addressable when tested rigorously — while sharpening one of its premises: task properties are structurally hard to disguise and may not be removable at all.
 
 ### Principles
 
-**Evaluation awareness is a default confound in alignment evaluations.** Any observed behaviour in an alignment or safety evaluation may be partly or wholly driven by the model's detection of the evaluation context, unless specific evidence says otherwise.
+**Evaluation awareness is a default confound in alignment evaluations.** Any observed behaviour may be partly or wholly driven by the model's detection of the evaluation context, unless the design explicitly decomposes eval awareness from the other factors being varied (cf. §5).
 
-**Manipulating an evaluation property simultaneously changes how "eval-like" the scenario appears.** The intended manipulation and the eval-awareness confound are entangled. Disentangling them requires explicit attention and should be considered when designing any experiment that varies properties of alignment evaluations.
+**Distinguish task-driven from environment-driven eval awareness.** Environment-driven awareness arises from the scaffolding — tooling, prompt wording, formatting; task-driven awareness arises from features intrinsic to the construct — stakes, incentives, situational context. Where a deployment-data baseline is available, the gold-standard test is whether scaffolded benign tasks are indistinguishable from real deployment at near-chance accuracy. Where it is not — typically the case for an automated investigation — decompose the eval's features into *syntactic* cues (phrasing, formatting, tool-response style) and *semantic* cues (the situation, the stakes, the incentives), and treat both classes as systematically perturbable. Syntactic perturbations test the eval's sensitivity to surface form; semantic perturbations test how the construct itself shapes behaviour and are among the most informative manipulations in alignment-eval science. The decomposition is a methodological lens, not a fence around what may be studied.
 
-**Ablating verbalized cues does not resolve the eval awareness confound.** If a model reports that feature X caused its awareness, removing feature X may not eliminate awareness: the model may detect the evaluation context through features it did not report. Evaluation awareness should always be included among the competing hypotheses when interpreting results from alignment evaluations.
+**Absence of unprompted mention is not absence of awareness.** Models discriminate eval from deployment at 70–75% accuracy when explicitly prompted, while mentioning being tested in only 12–36% of unprompted transcripts. An eval where models don't *say* they're being tested is not necessarily one they don't *recognise* as a test.
+
+**Manipulating an evaluation property simultaneously changes how "eval-like" it appears.** The intended manipulation and the eval-awareness confound are entangled; disentangling them requires explicit attention when designing any experiment that varies properties of alignment evaluations.
+
+**Ablating verbalised cues does not resolve the confound.** Removing a feature the model reports as causing its awareness may not eliminate awareness — the model may detect the evaluation context through features it did not report. Statistical decomposition across multiple co-varying factors is more reliable than single-cue ablation.
 
 ---
 
-## 5. Questionable Practices in Machine Learning
+## 5. Propensity Inference: Environmental Contributors to LLM Behaviour
+
+**Source:** Järviniemi, O., Makins, O., Merizian, J., Kirk, R., Millwood, B. (2026). Propensity Inference: Environmental Contributors to LLM Behaviour. arXiv:2604.21098. UK AI Security Institute.
+
+### What this paper argues
+
+Järviniemi and colleagues develop a methodology for measuring language models' propensity for unsanctioned behaviour, where *propensity* refers to what a model will try to do in contrast to what it is *capable* of, operationalised by measuring how behaviour changes across systematically varied environmental factors rather than by absolute rates at a single configuration. Their three methodological contributions are: (1) analysing effects of changes to environmental factors on behaviour rather than only headline pass/fail rates; (2) quantifying effect sizes with explicit uncertainty (Bayesian generalised linear models in the paper itself; simpler relative-change framings suffice for smaller investigations); and (3) taking explicit measures against circular analysis. Applied to 23 language models across 11 evaluation environments, they manipulate 12 environmental factors — six *strategic* (Goal Instruction, Goal Conflict, Threat to AI, Action Oversight, Action Efficacy, Reasoning Privacy) and six *non-strategic* (Anti-Misalignment Instruction, Independence Instruction, Reasoning Instruction, Filler Richness, Date, CoT Tag) — and find that strategic and non-strategic factors contribute roughly equally to explaining behaviour; strategic-factor influence does not obviously change with model capability; and the most consistent capability-dependent signal is increased sensitivity to goal conflicts among more capable models (which may partly reflect benign clarification-seeking).
+
+The "circular analysis" the paper guards against has a specific shape: an evaluation environment is constructed; no unsanctioned behaviour is observed; the environment is iteratively modified until a version that elicits the behaviour is found; the eliciting factors are then "tested" in that final environment. Regression to the mean ensures that removing those factors will appear to reduce the behaviour for statistical rather than propensity reasons. Their countermeasures are procedural: when iterating to surface a behaviour, test the efficacy of changes against *randomly sampled* configurations of the other factors and against *randomly sampled* models, not a single fixed configuration. This protects construct validity but not ecological validity, since findings still come from adversarially constructed settings.
+
+The paper builds methodologically on Summerfield et al. (§2), extending the disciplined-behavioural-research programme with systematic factor variation and statistical aggregation across many models and environments.
+
+### Principles
+
+**Propensity claims require causal decomposition, not only behavioural observation.** Showing that a model produced output X under condition Y is weaker than showing X varies with environmental factor F. The unit of evidence is the contribution of a factor, not the rate at a setting.
+
+**Strategic and non-strategic environmental factors should be manipulated separately and their contributions compared.** A behaviour may be driven by a goal conflict (strategic) or by a surface cue such as filler richness or a chain-of-thought tag (non-strategic). The relative contribution is itself a finding, not a nuisance to suppress.
+
+**Relative effects, not raw percentage-point differences, are the unit of propensity evidence.** A change from 1% to 5% and a change from 50% to 54% are both four percentage points but very different in relative terms. Report relative changes (×5 increase, doubled rate, +8 points off a 50% baseline). When n is small or statistical tooling for parametric uncertainty quantification is unavailable, use **directional consistency across conditions** as a sufficiency check — Järviniemi & Makins cite their goal-instruction and goal-conflict factors as raising unsanctioned-behaviour rates in 92% of cases, treating that qualitative consistency as informative even without formal pooling.
+
+**Benchmark-development-level circular analysis is distinct from project-level cycle contamination.** The latter (cf. §7) is about cycle N+1's hypothesis being informed by cycle N's data; the former is about the evaluation environment itself having been iteratively shaped to elicit the behaviour it now measures. Pre-registering factor manipulations, and randomising the configurations and models against which iteration is tested, are the specific defences. These protect construct validity but not ecological validity.
+
+**Capability-dependence of propensity is a claim to be tested, not assumed.** "More capable models will show more X" is a hypothesis, not a default. The observation that strategic-factor influence does not obviously scale with capability — across 23 models and 11 environments — is a methodological data point as well as a substantive one.
+
+---
+
+## 6. Are Emergent Abilities of Large Language Models a Mirage?
+
+**Source:** Schaeffer, R., Miranda, B., Koyejo, S. (2023). Are Emergent Abilities of Large Language Models a Mirage? Advances in Neural Information Processing Systems 36 (NeurIPS 2023). arXiv:2304.15004.
+
+### What this paper argues
+
+Schaeffer and colleagues challenge the claim that large language models possess genuinely emergent abilities — capabilities absent at smaller scales that appear sharply at larger ones. They show that apparent emergence is largely an artefact of how performance is measured rather than a fundamental property of scaling. The central observation: nonlinear or discontinuous metrics (e.g., exact-match accuracy, multiple-choice grade) produce apparent emergent abilities, whereas linear or continuous metrics (e.g., token-level log-likelihood, edit distance) applied to the same model outputs produce smooth, predictable changes in performance. They demonstrate the effect three ways: (1) predicting which BIG-Bench tasks should appear emergent under their account and validating against the literature; (2) showing on InstructGPT/GPT-3 that switching to a smoother metric dissolves the apparent emergence; and (3) artificially inducing seemingly emergent abilities in vision tasks via strategic metric choice.
+
+A second mechanism the paper identifies is statistical, not metric-theoretic: "alleged emergent abilities evaporate with different metrics or with better statistics." Underpowered evaluations at smaller scales may simply lack the resolution to detect continuous performance that is in fact present, with the apparent threshold being the point at which the test became powerful enough to see something.
+
+### Principles
+
+**Metric choice is a form of construct operationalisation and belongs in the validity audit.** Two analyses of the same model outputs under different metrics can yield qualitatively different findings — smooth versus discontinuous, monotonic versus threshold-like. The choice of metric is not an implementation detail; it is part of the claim about what the evaluation measures. It should be audited alongside item selection, prompt design, and elicitation regime (cf. §3).
+
+**Apparent thresholds and qualitative transitions should be tested under alternative metrics before being treated as load-bearing.** If a "capability X emerges at scale Y" claim disappears under a smoother or differently-shaped metric, the original claim was metric-dependent rather than a finding about the underlying model. A report that varies the metric and shows the same conclusion is much stronger than one that does not.
+
+**Coarse metrics under-resolve small effects.** Pass/fail and exact-match rates discard information about how close a model came to a target. Continuous metrics preserve gradient that is often diagnostic, particularly at smaller scales where coarse metrics may register zero successes regardless of the true underlying performance distribution. Statistical underpowering reinforces this: small samples on coarse metrics can fabricate apparent discontinuities that better statistics dissolve.
+
+---
+
+## 7. Questionable Practices in Machine Learning
 
 **Source:** Leech, G., Vazquez, J., et al. (2024). Questionable Practices in Machine Learning. arXiv:2407.12220.
 
@@ -112,11 +170,11 @@ Leech and colleagues catalogue 44 questionable research practices (QRPs) observe
 
 **Evaluation items themselves may contain errors.** Before attributing model behaviour to a construct, it is worth checking whether the evaluation items are well-formed. Errors in evaluation items can produce spurious behavioural patterns.
 
-**Knowledge from earlier cycles can contaminate later ones.** If findings from cycle N are used to design the hypothesis for cycle N+1, the later hypothesis is not independent of the data. This is acceptable when labelled as hypothesis-generating rather than hypothesis-testing, but the distinction must be explicit.
+**Knowledge from earlier cycles can contaminate later ones.** If findings from cycle N are used to design the hypothesis for cycle N+1, the later hypothesis is not independent of the data. This is acceptable when labelled as hypothesis-generating rather than hypothesis-testing, but the distinction must be explicit. Contamination can also occur at the design stage rather than across cycles — for example, when example selection or prompt design implicitly uses information from the evaluation set (Perez et al., 2021, *True Few-Shot Learning*). This is distinct from circular analysis at the benchmark-development level, where the evaluation environment itself was iteratively shaped to elicit the behaviour it now measures (§5).
 
 ---
 
-## 6. Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design
+## 8. Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design
 
 **Source:** Sclar, M., Choi, Y., Tsvetkov, Y., Suhr, A. (2024). Quantifying Language Models' Sensitivity to Spurious Features in Prompt Design or: How I learned to start worrying about prompt formatting. arXiv:2310.11324. ICLR 2024.
 
@@ -134,11 +192,13 @@ A further finding: format performance only weakly correlates between models, mak
 
 **Robustness across prompt formulations is a minimum standard for reportable findings.** If a behavioural difference is observed under a single prompt formulation, it may be a prompt artefact. Testing the same manipulation under multiple semantically equivalent but formatically distinct variants is necessary before drawing conclusions.
 
+**Response-format sensitivity is a separate axis from prompt-format sensitivity.** The choice of response structure — multiple-choice versus generative, label scheme (numeric, alphabetic, symbol), the number and ordering of answer options, the verbosity expected of the response — independently affects measured capability. A robust finding survives variation along both axes, not just one (Robinson et al., 2022; Khatun et al., 2024).
+
 **Placebo conditions help distinguish content effects from perturbation effects.** A modification of similar magnitude and formatting impact but orthogonal content provides a baseline for how much behavioural change is attributable to the mere fact of modification, as opposed to its specific content.
 
 ---
 
-## 7. Establishing Best Practices for Building Rigorous Agentic Benchmarks
+## 9. Establishing Best Practices for Building Rigorous Agentic Benchmarks
 
 **Source:** Zhu, Y., Jin, T., Pruksachatkun, Y., Zhang, A., et al. (2025). Establishing Best Practices for Building Rigorous Agentic Benchmarks. arXiv:2507.02825.
 
