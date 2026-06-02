@@ -73,7 +73,7 @@ The user presents a research question. The orchestrator helps refine it into a t
    - *Baseline drift policy*: If control conditions produce substantially different results across iterations, should the orchestrator re-run controls to check reproducibility (costs an extra iteration's compute) or flag the inconsistency and continue? Small sample sizes make some drift expected — agree on how much warrants action.
    - *Iteration cap*: Maximum number of investigation loop cycles before stopping, regardless of whether findings are conclusive. This prevents runaway costs on ambiguous questions.
 
-7. **Initialize the investigation log.** Create `investigation-log.md` in the experiment's parent directory to track state across iterations (see State Management below).
+7. **Initialize the investigation directory.** Create `investigations/<investigation_name>/` at the workspace root, where `<investigation_name>` is a snake_case identifier for the research question (e.g., `agentic_misalignment_blind_spots`). All Orchestrator outputs for this investigation live here. Inside it, create `INVESTIGATION-LOG.md` to track state across iterations (see State Management below). The final `FINDINGS-REPORT.md` will be written here as a sibling at the end of the investigation (see Phase 3).
 
 ### What can go wrong
 
@@ -95,7 +95,7 @@ The request and report formats for the Explorer are defined in `explorer_interfa
 - Construct the Explorer input JSON per `explorer_interface_contract.md §Request Format` and launch via CLI script (see `subagent_invocation.md`).
 - The hypothesis IS passed to the Explorer — this is the one agent that receives it directly. (The Transcript Analyst must NOT receive it.)
 - If prior iterations have narrowed the scope, pass any shaping preferences via the optional `constraints` field (e.g., "focus on system prompt and scoring; skip the scaffold directory").
-- Save the Explorer's stdout report to `<experiment_dir>/artefacts/explorer/report.md`.
+- Save the Explorer's stdout report to `<iteration_dir>/artefacts/explorer/report.md`.
 
 **What can go wrong:**
 - The Explorer reports that no viable modification sites exist with the given environment and hypothesis. Report to user and revise.
@@ -149,17 +149,21 @@ This is entirely the orchestrator's work. No sub-agent handles this.
 
 **Orchestrator work:**
 
-1. **Create an experiment directory.** Copy the eval environment to a new, isolated directory for this experiment. Convention:
+1. **Create the iteration directory.** Each iteration gets its own isolated working copy of the eval environment under the investigation directory. Convention:
    ```
-   <parent>/<experiment_name>/
+   investigations/<investigation_name>/<iteration_name>/
    ```
-   where `<experiment_name>` is a descriptive snake_case identifier (e.g., `explicit_goal_framing_v1`). This preserves the original eval environment and allows clean restarts for new iterations.
+   where `<iteration_name>` is a descriptive snake_case identifier for this iteration (e.g., `explicit_goal_framing_v1`).
 
-   If iterating on a previous experiment, create a new directory (e.g., `explicit_goal_framing_v2`) rather than modifying the previous one. Previous experiment directories are evidence and should not be altered.
+   **Each iteration directory is immutable once created.** When starting iteration N+1, create a new sibling directory rather than editing iteration N. Two cases:
+   - *Fresh perturbation:* copy the original eval environment into the new iteration directory. This preserves the original for future iterations.
+   - *Extending a previous perturbation:* copy iteration N's modified eval into iteration N+1's new directory as the starting point, then apply the new diffs there. Iteration N's directory must remain unchanged — it is evidence.
 
-   **Create an artefacts directory** within the experiment directory:
+   Previous iteration directories are never modified — not to clean up artefacts, not to fix typos, not to apply a "small additional" perturbation. They are the reproducible record of what was actually run, and the investigation's scientific value depends on preserving them as-is. This is restated as Anti-Pattern #2 below.
+
+   **Create an artefacts directory** within the iteration directory:
    ```
-   <parent>/<experiment_name>/artefacts/
+   investigations/<investigation_name>/<iteration_name>/artefacts/
    ```
    This directory is passed to sub-agents that produce file outputs. Each sub-agent creates its own subdirectory (e.g., `artefacts/analyst/`). The orchestrator saves stdout reports from sub-agents that cannot write files themselves (the Environment Explorer) to `artefacts/explorer/report.md`.
 
@@ -192,11 +196,11 @@ The request and report formats for the Executor are defined in `executor_interfa
    - Task file path (relative to `experiment_dir`)
    - Task arguments (`-T key=value` pairs that differ between conditions)
 
-2. **Assemble the Executor input JSON** per `executor_interface_contract.md §Request Format`. Required: `experiment_name`, `experiment_dir`, `conditions`, `models`. Optional `overrides` supports `sample_limit`, `epochs`, `skip_preflight`, `max_parallel`, `max_connections`, `runs_per_condition`.
+2. **Assemble the Executor input JSON** per `executor_interface_contract.md §Request Format`. Required: `experiment_name`, `experiment_dir`, `conditions`, `models`. Pass this iteration's `<iteration_name>` and `<iteration_dir>` as the values of the schema's `experiment_name` and `experiment_dir` fields respectively — the schema retains its historical field names but the values are per-iteration. Optional `overrides` supports `sample_limit`, `epochs`, `skip_preflight`, `max_parallel`, `max_connections`, `runs_per_condition`.
 
 3. **Launch the Experiment Executor sub-agent** via CLI script (see `subagent_invocation.md`).
 
-4. **Save the Executor's stdout report** to `<experiment_dir>/artefacts/executor/report.md`.
+4. **Save the Executor's stdout report** to `<iteration_dir>/artefacts/executor/report.md`.
 
 **What can go wrong:**
 - A task file path in `conditions` does not resolve inside the experiment directory. Double-check paths before launching.
@@ -297,10 +301,10 @@ This is the orchestrator's most important cognitive task. The Transcript Analyst
 
 1. **Construct the request** following the format in `analyst_interface_contract.md`:
    - **Topic**: The neutral topic from Step 2f.
-   - **Transcript source**: A mapping from opaque condition labels to log directory paths (e.g., `{"condition_A": "<experiment_dir>/logs/control/", "condition_B": "<experiment_dir>/logs/treatment/"}`). Randomise the mapping between condition labels and actual conditions.
+   - **Transcript source**: A mapping from opaque condition labels to log directory paths (e.g., `{"condition_A": "<iteration_dir>/logs/control/", "condition_B": "<iteration_dir>/logs/treatment/"}`). Randomise the mapping between condition labels and actual conditions.
    - **Scanning model** (optional): Override the default scanning model if needed.
    - **Constraints** (optional): Limit transcript count, concurrency, etc.
-   - **Artefacts directory**: Pass `<experiment_dir>/artefacts/` so the analyst writes its outputs to `<experiment_dir>/artefacts/analyst/`.
+   - **Artefacts directory**: Pass `<iteration_dir>/artefacts/` so the analyst writes its outputs to `<iteration_dir>/artefacts/analyst/`.
 
 2. **Launch the Transcript Analyst sub-agent** via CLI script (see `subagent_invocation.md`).
 
@@ -406,15 +410,17 @@ These questions don't have mechanical answers. They require judgement — the ki
 
 **Orchestrator work:**
 
-1. **Headline finding (1-2 sentences).** What was the research question, and what did you find? State the effect direction and magnitude. If the result is null, say so directly.
+1. **Write the standalone findings report.** Before presenting to the user, write the final synthesis to `investigations/<investigation_name>/FINDINGS-REPORT.md` as an independent document. This is distinct from `INVESTIGATION-LOG.md`: the log is the cumulative per-iteration state; the findings report is the final standalone synthesis. *Do not append the findings report to the log.* A reader should be able to open `FINDINGS-REPORT.md` and understand the investigation's conclusions without consulting the log. The structure of the report follows steps 2–6 below.
 
-2. **Evidence summary (brief).** Per-iteration: what was manipulated, what changed, key numbers. Use a table if there were multiple iterations. Do not relay the full analyst report — summarise the 2-3 strongest signals with their per-condition rates and validation metrics.
+2. **Headline finding (1-2 sentences).** What was the research question, and what did you find? State the effect direction and magnitude. If the result is null, say so directly.
 
-3. **Caveats and limitations.** What could undermine these findings? Include: sample size adequacy, baseline variance across iterations, scanner precision/recall, differential attrition, confounds not controlled for. Be specific — "more work is needed" is not a caveat.
+3. **Evidence summary (brief).** Per-iteration: what was manipulated, what changed, key numbers. Use a table if there were multiple iterations. Do not relay the full analyst report — summarise the 2-3 strongest signals with their per-condition rates and validation metrics.
 
-4. **Artefacts.** Point the user to the investigation log, experiment directories, and analyst scan results for drill-down.
+4. **Caveats and limitations.** What could undermine these findings? Include: sample size adequacy, baseline variance across iterations, scanner precision/recall, differential attrition, confounds not controlled for. Be specific — "more work is needed" is not a caveat.
 
-5. **Suggested next steps** (if appropriate). 2-3 concrete options ranked by information value, not a laundry list.
+5. **Artefacts.** Point the user to the investigation log, iteration directories, and analyst scan results for drill-down.
+
+6. **Suggested next steps** (if appropriate). 2-3 concrete options ranked by information value, not a laundry list.
 
 **Self-checks before presenting:**
 
@@ -429,10 +435,10 @@ These questions don't have mechanical answers. They require judgement — the ki
 
 ### Investigation Log
 
-The orchestrator maintains `investigation-log.md` in the experiment's parent directory. It is updated at every decision point. Structure:
+The orchestrator maintains `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`). It is updated at every decision point and captures cumulative per-iteration state. It is distinct from `FINDINGS-REPORT.md`, which is the final standalone synthesis written once at the end (see Phase 3); never append the findings report to the log. Structure:
 
 ```markdown
-# Investigation Log: <Experiment Name>
+# Investigation Log: <Investigation Name>
 
 ## Hypothesis
 <current hypothesis>
@@ -481,36 +487,39 @@ The orchestrator maintains `investigation-log.md` in the experiment's parent dir
 
 ---
 
-## Experiment Directory Convention
+## Investigation Directory Convention
 
 ```
 <workspace>/
-├── <eval_environment>/           # Original eval (never modified)
-├── <experiment_name>_v1/         # Iteration 1 working copy
-│   ├── [eval files, modified]
-│   ├── logs/
-│   │   ├── control/
-│   │   └── treatment/
-│   └── artefacts/
-│       ├── explorer/             # Explorer report (saved by orchestrator)
-│       │   └── report.md
-│       ├── executor/             # Executor report (saved by orchestrator)
-│       │   └── report.md
-│       └── analyst/              # Analyst outputs (written by analyst agent)
-│           ├── report.md
-│           ├── scanners.py
-│           └── scans/
-├── <experiment_name>_v2/         # Iteration 2 working copy (if needed)
-│   ├── [eval files, modified differently]
-│   ├── logs/
-│   │   ├── control/
-│   │   └── treatment/
-│   └── artefacts/
-│       └── [same structure]
-└── investigation-log.md          # Persistent state
+├── <eval_environment>/                       # Original eval (never modified)
+└── investigations/
+    └── <investigation_name>/                 # One per research investigation
+        ├── INVESTIGATION-LOG.md              # Cumulative per-iteration state
+        ├── FINDINGS-REPORT.md                # Standalone final synthesis (written in Phase 3)
+        ├── <iteration_name>_v1/              # Iteration 1 working copy
+        │   ├── [eval files, modified]
+        │   ├── logs/
+        │   │   ├── control/
+        │   │   └── treatment/
+        │   └── artefacts/
+        │       ├── explorer/                 # Explorer report (saved by orchestrator)
+        │       │   └── report.md
+        │       ├── executor/                 # Executor report (saved by orchestrator)
+        │       │   └── report.md
+        │       └── analyst/                  # Analyst outputs (written by analyst agent)
+        │           ├── report.md
+        │           ├── scanners.py
+        │           └── scans/
+        └── <iteration_name>_v2/              # Iteration 2 working copy (if needed)
+            ├── [eval files, modified differently]
+            ├── logs/
+            │   ├── control/
+            │   └── treatment/
+            └── artefacts/
+                └── [same structure]
 ```
 
-Each iteration gets its own directory. Previous iterations are never modified.
+Each iteration gets its own directory. Previous iterations are never modified — if iteration N+1 extends iteration N's perturbation, copy iteration N's modified eval into the new iteration N+1 directory as the starting point rather than editing iteration N in place.
 
 ---
 
@@ -572,7 +581,7 @@ If Model A succeeded but Model B failed entirely, the orchestrator can still sen
 
 1. **Smuggling the hypothesis into the topic.** The single most important rule. If the Analyst knows the hypothesis, its analysis is contaminated.
 
-2. **Modifying the original eval environment.** Always work on a copy. The original must be preserved for reproducibility and for future experiments.
+2. **Modifying the original eval environment OR a previous iteration's working copy.** Each iteration directory is immutable once created. When extending a previous perturbation, copy iteration N's modified eval into iteration N+1's new directory as a starting point; do not edit iteration N in place. Previous iteration directories are evidence — not to be cleaned up, fixed up, or extended in place — and preserving them as the reproducible record of what was actually run is what gives the investigation its scientific value. The original eval environment is preserved on the same principle.
 
 3. **Iterating without updating the investigation log.** State loss across iterations leads to repeated work, contradictory modifications, and untraceable decisions.
 

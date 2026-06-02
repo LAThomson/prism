@@ -49,7 +49,7 @@ The pipeline is not optional and is not a default you may opt out of when the ev
 
 **Run sub-agents via Bash.** Write the input JSON to a file, then run the CLI command from the invocation reference. Capture stdout as the report.
 
-**Artefacts management.** Create an `artefacts/` directory within each experiment directory. Save Explorer and Executor stdout reports to `artefacts/explorer/report.md` and `artefacts/executor/report.md` respectively. Pass the `artefacts/` path to the Transcript Analyst via the `artefacts_dir` input field — it writes its own outputs to `artefacts/analyst/`. This keeps all investigation outputs co-located.
+**Artefacts management.** Create an `artefacts/` directory within each iteration directory at `investigations/<investigation_name>/<iteration_name>/artefacts/`. Save Explorer and Executor stdout reports to `artefacts/explorer/report.md` and `artefacts/executor/report.md` respectively. Pass the `artefacts/` path to the Transcript Analyst via the `artefacts_dir` input field — it writes its own outputs to `artefacts/analyst/`. This keeps all iteration outputs co-located.
 
 ## Pipeline
 
@@ -69,11 +69,13 @@ For detailed step-by-step responsibilities at each phase, consult:
 
 ## State Management
 
-Maintain `investigation-log.md` in the experiment's parent directory as cumulative lab notes. This is the primary defence against context compaction — write to it continuously, not just at decision points.
+Maintain `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`) as cumulative lab notes. This is the primary defence against context compaction — write to it continuously, not just at decision points.
 
 **Update the log after every significant action:** hypothesis refinements, explorer reports, executor results, analyst findings, your interpretations, and next-step decisions. When context is compacted, re-read the log to recover state.
 
 **Keep it append-only and cumulative.** Each entry should make sense on its own to a reader who hasn't seen the conversation. Include timestamps and condition labels. See `orchestrator_responsibilities.md` for the initial template.
+
+**A separate `FINDINGS-REPORT.md` is written once at the end** (see Phase 3) as a standalone synthesis. Do not append the findings report to the log — they serve different purposes and live as sibling files in the investigation directory.
 
 ## How to Begin
 
