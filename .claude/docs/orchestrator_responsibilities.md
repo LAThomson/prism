@@ -321,8 +321,8 @@ This is the orchestrator's most important cognitive task. The Transcript Analyst
 
 **What the orchestrator receives** (see `analyst_interface_contract.md` for full format):
 - Scanner definitions (names, types, questions/patterns)
-- Validation metrics (balanced accuracy, precision, recall, F1 per scanner)
-- Quantified results (per-condition detection rates and distributions)
+- Validation metrics — chance-adjusted agreement (κ), precision, recall, F1, validation set size, labelling method, validator-model identity per scanner
+- Quantified results — per-condition rates with scanner-adjusted bounds and Wilson CIs; between-condition rate-difference Newcombe-Wilson CIs and Fisher's exact p-values; multiple-comparisons count and Bonferroni-corrected p-values when applicable; "Provisional" subsection for unvalidated scanners
 - Scan results path (for sanity-checking summary statistics)
 - Transcript exclusions (counts and reasons, by condition)
 - Transcript excerpts (illustrative message references)
@@ -330,11 +330,19 @@ This is the orchestrator's most important cognitive task. The Transcript Analyst
 
 **Orchestrator work:**
 
-Before interpreting findings, run lightweight consistency checks. See `analyst_delegation_guide.md` for detailed guidance on checking validation metrics, completion rate balance, metadata imbalances, and scanner design artefacts.
+Run lightweight consistency checks before interpreting findings. See `analyst_delegation_guide.md` for detailed guidance.
 
-1. **Verify summary statistics.** Do per-condition counts sum to the total? Are detection rates arithmetically consistent with the raw counts reported?
-2. **Check validation metrics.** Are scanner precision and recall adequate? Factor imprecision into any downstream interpretation.
-3. **Check for differential attrition.** Are transcript exclusion counts balanced across conditions?
+1. **Verify summary statistics.** Do per-condition counts sum to the total? Are reported rates arithmetically consistent with the raw counts?
+
+2. **Check validation reliability per scanner — hard gate.** Each headline scanner in the Summary must show κ ≥ 0.4 AND precision ≥ 0.6. If a scanner in the Summary fails either threshold, the analyst violated the contract — treat that scanner's findings as provisional regardless of its placement and note the contract breach in the investigation log. If the report includes a *same-family-agreement risk* flag, the analyst has already downgraded the affected scanner; honour the downgrade.
+
+3. **Check the between-condition CIs against zero — the headline falsifier.** For each headline finding, look at the Newcombe-Wilson CI on the rate difference. If it straddles zero, the finding is a null result regardless of how large the per-condition rate gap appears — report it as such in §2i and Phase 3. Do not selectively cite the per-condition rates when the CI on the difference is uninformative.
+
+4. **Engage with the multiple-comparisons count.** If the analyst reports > 5 between-condition tests across all scanners and pairs, read the Bonferroni-corrected p-values. Any "would not survive multiplicity correction" flag means the finding is hypothesis-generating, not evidence — degrade your interpretation accordingly. Persistent failure to survive Bonferroni across iterations is itself a signal that the investigation is generating noise rather than findings.
+
+5. **Check the reliability flag per Summary scanner.** Scanners tagged `marginal` (0.4 ≤ κ < 0.6) should not anchor your interpretation in §2i; treat them as supporting context for `reliable` findings (κ ≥ 0.6), not as headline evidence in their own right.
+
+6. **Check for differential attrition.** Are transcript exclusion counts balanced across conditions?
 
 ---
 

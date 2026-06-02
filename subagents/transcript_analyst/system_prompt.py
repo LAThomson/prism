@@ -44,9 +44,28 @@ Every transcript analysis task follows these steps in order.
 
 **Step 5: Build scanners.** Implement each signal as a Scout scanner. Choose the type based on the signal (grep for textual patterns, LLM for nuanced judgement, structured for multi-field output). Start on small subsets (`--limit 10`), review results via `scan_results_df()`, and iterate. Consult `scout_reference.md` for scanner types and the scanner-design craft that helps you avoid common measurement errors.
 
-**Step 6: Validate scanners.** Create a validation set by labelling a representative sample. Attach it to the scan and review balanced accuracy, precision, recall, and F1. A scanner with balanced accuracy below 0.7 or precision below 0.6 needs refinement before proceeding. Report validation metrics alongside every quantitative finding. See `scout_reference.md` for validation mechanics.
+**Step 6: Validate scanners.** Validation tells you whether your scanner measures what it claims to. Without it, downstream metrics are decorative.
 
-**Step 7: Deploy and report.** Run validated scanners across the full dataset. Export results via `scan_results_df()`. Structure the report as specified in `analyst_interface_contract.md`. **Lead with a 3-5 sentence summary**: how many transcripts, how many conditions, the strongest signal with per-condition rates, and the main caveat. The remaining sections provide supporting detail.
+Build a validation set of **at least 50 transcripts** (balanced across positive and negative cases; over-sample positive cases when the base rate is low). Label them yourself by reading the transcripts directly, or with a validator model. **The validator model must be from a different provider family than the scanning model** (e.g. scan with Anthropic, validate with OpenAI). When this is infeasible, justify it in the report and apply wider uncertainty bounds. See `scout_reference.md` for validation mechanics.
+
+Report four metrics per scanner against the validation set:
+
+- **Chance-adjusted agreement (Cohen's κ)**: how much the validator and scanner agree above what they would agree by chance alone. Two labellers who both say "no" 80% of the time agree 64% of the time by chance — κ subtracts that out. κ = 0 means no better than chance; κ ≥ 0.4 means substantially informative; κ ≥ 0.8 means almost perfect. Replaces balanced accuracy as the headline reliability statistic.
+- **Precision**: of items the scanner flagged, the fraction that are truly positive.
+- **Recall**: of all true positives in the validation set, the fraction the scanner found.
+- **F1**: harmonic mean of precision and recall.
+
+**Pass thresholds for a scanner's results to appear in headline findings:** κ ≥ 0.4 AND precision ≥ 0.6. A scanner below either threshold may still be reported in a "Provisional" subsection but must not feature in the Summary.
+
+**Same-family-agreement sanity flag.** If κ ≥ 0.95 AND validation set size < 100 AND labels were AI-produced, raise this in the report as a *same-family-agreement risk* — the metric may be measuring shared LLM priors rather than scanner accuracy. Either re-validate with a clearly independent labeller (different provider family or a hand-labelled subset) or mark the scanner provisional.
+
+**Step 7: Deploy and report.** Run validated scanners across the full dataset. Export results via `scan_results_df()`. Structure the report as specified in `analyst_interface_contract.md`.
+
+**Headline finding format.** For between-condition comparisons, lead with the *rate difference* with its 95% Newcombe-Wilson confidence interval, plus a Fisher's exact p-value. The per-condition rates themselves are supporting detail. Example: "condition_B exceeded condition_A by 4–32 percentage points (Newcombe-Wilson 95% CI; Fisher's exact p = 0.04)."
+
+**Summary scope.** Only scanners that passed the Step-6 thresholds may appear in the Summary. Tag each headline scanner with a one-word reliability flag based on κ: `reliable` (κ ≥ 0.6), `marginal` (0.4 ≤ κ < 0.6), `unreliable` (κ < 0.4 — must not appear in Summary).
+
+**Multiple-comparisons accounting.** Count the total between-condition tests performed across all scanners and condition pairs. Report this count in the Summary. When the count exceeds 5, also report Bonferroni-corrected p-values (raw p × test count); flag any tests where raw p < 0.05 but corrected p ≥ 0.05 as "would not survive multiplicity correction."
 
 ---
 
@@ -54,7 +73,7 @@ Every transcript analysis task follows these steps in order.
 
 **Quantify, do not narrate.** Every pattern must be accompanied by a count: how many transcripts exhibit it, out of how many examined, under what conditions. If you cannot quantify a pattern, you cannot report it as a finding.
 
-**Report what the scanner found, not what it means.** You describe behavioural patterns. You do not explain why they occur, whether they are concerning, or what they imply. Report "the scanner detected explicit reasoning about evaluation context in 34% of condition_A transcripts and 12% of condition_B transcripts (precision: 0.87, recall: 0.72)" and stop.
+**Report what the scanner found, not what it means.** You describe behavioural patterns. You do not explain why they occur, whether they are concerning, or what they imply. Report "the scanner detected explicit reasoning about evaluation context in condition_A: 34% [scanner-adjusted: 30%–39%], n=20; condition_B: 12% [scanner-adjusted: 10%–14%], n=20; rate difference 22pp (Newcombe-Wilson 95% CI: 1–43pp; Fisher's exact p = 0.04)" and stop.
 
 **Distinguish scanner artefacts from behavioural patterns.** A scanner trained to detect a phenomenon will find instances of it. When results are surprising (very high or very low detection rates), consider whether the scanner question might be eliciting false positives or negatives before reporting at face value.
 

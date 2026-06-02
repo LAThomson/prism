@@ -58,7 +58,15 @@ Each report from the Transcript Analyst to the orchestrator contains the followi
 
 ### Summary
 
-A 3-5 sentence overview of the analysis. State: how many transcripts were analysed across how many conditions, the strongest signal found (with per-condition rates), and the main caveat or limitation. This section should be interpretable without reading anything else.
+A 3-5 sentence overview of the analysis. State: how many transcripts were analysed across how many conditions, the strongest signal found, and the main caveat or limitation. This section should be interpretable without reading anything else.
+
+**Headline numbers must be between-condition rate differences, not per-condition rates alone.** Report the difference with its 95% Newcombe-Wilson confidence interval and a Fisher's exact p-value: e.g. "condition_B exceeded condition_A by 4–32 percentage points (Newcombe-Wilson 95% CI; Fisher's exact p = 0.04)." The per-condition rates are supporting detail in §Quantified Results.
+
+**Only scanners that passed the validation thresholds may appear in the Summary** (κ ≥ 0.4 AND precision ≥ 0.6; see §Validation Metrics). Provisional or unvalidated scanners are reported in §Quantified Results under a "Provisional (unvalidated)" subsection and must not feature in headline claims.
+
+Tag each headline scanner with a one-word reliability flag based on its chance-adjusted agreement: `reliable` (κ ≥ 0.6), `marginal` (0.4 ≤ κ < 0.6). Scanners with κ < 0.4 are not eligible for the Summary at all.
+
+State the total number of between-condition statistical tests performed (across all scanners and condition pairs) so the reader can judge multiplicity. When this count exceeds 5, Bonferroni-corrected p-values are reported in §Quantified Results.
 
 ### Scanner definitions
 
@@ -72,26 +80,48 @@ For each scanner built during this analysis cycle:
 
 ### Validation metrics
 
-For each scanner, computed against a labelled validation set:
+For each scanner, computed against a labelled validation set of **at least 50 transcripts** (balanced across positive and negative cases; over-sample positive cases when the base rate is low):
 
-- **Balanced accuracy**: Average of recall and specificity.
-- **Precision**: When the scanner flags something, how often is it correct?
-- **Recall**: Of all items that should be flagged, how many did the scanner find?
-- **F1**: Harmonic mean of precision and recall.
-- **Validation set size**: How many labelled transcripts were used, and the positive/negative balance.
-- **Labelling method**: Whether validation labels were produced by a human or by an AI model. If AI-labelled, specify the labelling model. The orchestrator should apply wider uncertainty bounds when interpreting results validated against AI labels, since LLM judges have been found to disagree with human annotators 23-28% of the time in comparable settings (UK AISI International Joint Testing Exercise, 2025).
+- **Chance-adjusted agreement (Cohen's κ)**: how much the validator and scanner agree above what they would agree by chance alone. Replaces balanced accuracy as the headline reliability statistic — two labellers who both say "no" 80% of the time agree 64% of the time by chance, and balanced accuracy rewards this whereas κ subtracts it out. Formula: κ = (p_o − p_e) / (1 − p_e), where p_o is observed agreement and p_e is expected agreement under independence of the two labellers' marginal rates. Interpretation: κ = 0 means no better than chance; κ ≥ 0.4 means substantially informative (and is the threshold for using a scanner in headline findings); κ ≥ 0.6 substantial; κ ≥ 0.8 almost perfect.
+- **Precision**: of items the scanner flagged, the fraction that are truly positive. Reported with a 95% Wilson confidence interval.
+- **Recall**: of all true positives in the validation set, the fraction the scanner found. Reported with a 95% Wilson confidence interval.
+- **F1**: harmonic mean of precision and recall.
+- **Validation set size**: how many labelled transcripts were used, and the positive/negative balance.
+- **Labelling method**: whether validation labels were produced by a human, by an AI model, or by the analyst itself reading transcripts directly. If AI-labelled, specify the labelling model.
 
-If a scanner has not been validated, this must be stated explicitly, and any results from that scanner should be flagged as provisional.
+**Validator-model independence (required).** The validator model must be from a different provider family than the scanning model (e.g. scan with Anthropic, validate with OpenAI). When this is infeasible — and the analyst must justify why in the report — apply wider uncertainty bounds. Same-family validation tends to inflate agreement because the two models share priors on the construct being measured. LLM judges have been found to disagree with human annotators 23–28% of the time in comparable settings (UK AISI International Joint Testing Exercise, 2025); same-family pairs typically agree more closely than that, but the agreement is not informative about scanner accuracy.
+
+**Same-family-agreement sanity flag (required when triggered).** If κ ≥ 0.95 AND validation set size < 100 AND labels were AI-produced, the analyst must flag this as a *same-family-agreement risk* in the report — the metric may be measuring shared LLM priors rather than scanner accuracy. The analyst should either re-validate the scanner with a clearly independent labeller (different provider family or a hand-labelled subset) or downgrade the scanner to provisional.
+
+**Pass thresholds for headline use:** κ ≥ 0.4 AND precision ≥ 0.6. A scanner below either threshold may still be reported in §Quantified Results under "Provisional (unvalidated)" but must not feature in the Summary or in any headline claim.
+
+If a scanner has not been validated at all, this must be stated explicitly. Unvalidated scanner results are confined to the "Provisional" subsection in §Quantified Results.
 
 ### Quantified results
 
-Detection rates, distributions, and breakdowns by condition label and any other relevant metadata dimensions. Specifically:
+Detection rates, distributions, and breakdowns by condition label and any other relevant metadata dimensions. Results should be presented as structured data (DataFrames or tabular summaries) that the orchestrator can further analyse, not as narrative prose.
 
-- **Per-condition detection rates** for boolean scanners (e.g., "condition_A: 34% detected, n=200; condition_B: 12% detected, n=200").
-- **Per-condition distributions** for numeric or classification scanners (means, standard deviations, histograms, or confusion matrices as appropriate).
-- **Overall counts**: Total transcripts scanned, total per condition, any transcripts excluded and why.
+**Per-condition detection rates (boolean scanners).** Report the observed rate `r` together with two ranges that surface distinct sources of uncertainty:
 
-Results should be presented as structured data (DataFrames or tabular summaries) that the orchestrator can further analyse, not as narrative prose.
+- *Scanner-adjusted bounds* `[r · p, min(1, r / ρ)]`, where `p` is precision and `ρ` is recall. The lower bound discounts false positives; the upper accounts for missed detections. Use the lower endpoint of precision's 95% CI for `p` when computing the lower bound, to propagate validation-set noise.
+- *Sampling 95% Wilson CI* on `r` itself, computed from the sample size in that condition.
+
+Format: `r [scanner-adjusted: a–b] (Wilson 95% CI: c–d), n=N`. Example: `34% [scanner-adjusted: 27%–38%] (Wilson 95% CI: 24%–46%), n=50`.
+
+**Per-condition distributions (numeric or classification scanners).** Means, standard deviations, histograms, or confusion matrices as appropriate, with sample-size 95% CIs on each reported mean or rate.
+
+**Between-condition comparisons.** For each pair of conditions and each scanner, report:
+
+- *Rate difference* `r_A − r_B` with its 95% Newcombe-Wilson confidence interval (which combines the two single-condition Wilson intervals into a CI on the difference of proportions).
+- *Fisher's exact p-value* for the 2×2 contingency table of (positive, negative) × (condition_A, condition_B).
+
+These are the headline statistics for the hypothesis test — the rates themselves are supporting detail.
+
+**Multiple-comparisons accounting.** Count the total number of between-condition Fisher's exact tests performed (across all scanners × condition pairs). When the count exceeds 5, also report Bonferroni-corrected p-values (raw p × test count). Flag any tests where raw p < 0.05 but Bonferroni-corrected p ≥ 0.05 as "would not survive multiplicity correction."
+
+**Overall counts.** Total transcripts scanned, total per condition, any transcripts excluded and why.
+
+**Provisional (unvalidated) subsection.** Scanners below the κ ≥ 0.4 / precision ≥ 0.6 thresholds, or scanners that were not validated at all, are reported in a separate subsection under this heading. The same per-condition format applies, but every entry must be explicitly labelled `[provisional]`. The orchestrator may use these for hypothesis-generation but not for headline claims.
 
 ### Scan results path
 
