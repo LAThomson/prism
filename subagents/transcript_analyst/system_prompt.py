@@ -65,6 +65,8 @@ Report four metrics per scanner against the validation set:
 
 **Summary scope.** Only scanners that passed the Step-6 thresholds may appear in the Summary. Tag each headline scanner with a one-word reliability flag based on κ: `reliable` (κ ≥ 0.6), `marginal` (0.4 ≤ κ < 0.6), `unreliable` (κ < 0.4 — must not appear in Summary).
 
+**Floor/ceiling marker (required).** For every per-condition rate of a boolean scanner — in the Summary and §Quantified Results, including provisional scanners — append `[floor]` when the rate's Wilson 95% CI *upper* bound is below 0.20, and `[ceiling]` when the *lower* bound is above 0.80. The trigger is the CI, not the point estimate, so cases like a 12% rate with upper CI 18% must be tagged. Surface the marker on the headline line too when a finding's underlying conditions carry it — e.g. *"condition_B − condition_A: 1pp [−6, +9pp] (Newcombe-Wilson 95% CI; Fisher's exact p = 0.81); condition_A and condition_B both at floor."* This marker is the orchestrator's trigger for its headroom gate, so a missing marker is a contract breach, not a stylistic choice.
+
 **Multiple-comparisons accounting.** Count the total between-condition tests performed across all scanners and condition pairs. Report this count in the Summary. When the count exceeds 5, also report Bonferroni-corrected p-values (raw p × test count); flag any tests where raw p < 0.05 but corrected p ≥ 0.05 as "would not survive multiplicity correction."
 
 ---

@@ -66,6 +66,8 @@ A 3-5 sentence overview of the analysis. State: how many transcripts were analys
 
 Tag each headline scanner with a one-word reliability flag based on its chance-adjusted agreement: `reliable` (κ ≥ 0.6), `marginal` (0.4 ≤ κ < 0.6). Scanners with κ < 0.4 are not eligible for the Summary at all.
 
+**Surface floor/ceiling exposure in the Summary.** If any per-condition rate underlying a headline finding is tagged `[floor]` or `[ceiling]` per §Quantified Results, name it on the headline line for that finding (e.g. "condition_B − condition_A: 1pp [−6, +9pp] (Newcombe-Wilson 95% CI; Fisher's exact p = 0.81); condition_A and condition_B both at floor"). Between-condition equivalence claims are uninformative when one or both arms lack headroom — the marker tells the orchestrator the null may be a property of the elicitation regime, not of the hypothesis.
+
 State the total number of between-condition statistical tests performed (across all scanners and condition pairs) so the reader can judge multiplicity. When this count exceeds 5, Bonferroni-corrected p-values are reported in §Quantified Results.
 
 ### Scanner definitions
@@ -106,7 +108,9 @@ Detection rates, distributions, and breakdowns by condition label and any other 
 - *Scanner-adjusted bounds* `[r · p, min(1, r / ρ)]`, where `p` is precision and `ρ` is recall. The lower bound discounts false positives; the upper accounts for missed detections. Use the lower endpoint of precision's 95% CI for `p` when computing the lower bound, to propagate validation-set noise.
 - *Sampling 95% Wilson CI* on `r` itself, computed from the sample size in that condition.
 
-Format: `r [scanner-adjusted: a–b] (Wilson 95% CI: c–d), n=N`. Example: `34% [scanner-adjusted: 27%–38%] (Wilson 95% CI: 24%–46%), n=50`.
+Format: `r [scanner-adjusted: a–b] (Wilson 95% CI: c–d), n=N [floor|ceiling]?`. Example: `34% [scanner-adjusted: 27%–38%] (Wilson 95% CI: 24%–46%), n=50`.
+
+**Floor/ceiling marker (required when triggered).** Append `[floor]` when the rate's Wilson 95% CI *upper* bound is below 0.20; append `[ceiling]` when the rate's Wilson 95% CI *lower* bound is above 0.80. The trigger is the CI, not the point estimate, so suggestive cases (e.g. a 12% rate with upper CI 18%) are caught alongside the obvious ones. Apply to every per-condition rate reported under boolean scanners, in the Summary and in §Quantified Results, including provisional scanners. Examples: `4% [scanner-adjusted: 3%–6%] (Wilson 95% CI: 1%–11%), n=50 [floor]`; `92% [scanner-adjusted: 88%–95%] (Wilson 95% CI: 84%–97%), n=50 [ceiling]`. The marker is the trigger for the orchestrator's Step 2h headroom gate.
 
 **Per-condition distributions (numeric or classification scanners).** Means, standard deviations, histograms, or confusion matrices as appropriate, with sample-size 95% CIs on each reported mean or rate.
 

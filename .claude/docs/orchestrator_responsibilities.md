@@ -338,11 +338,13 @@ Run lightweight consistency checks before interpreting findings. See `analyst_de
 
 3. **Check the between-condition CIs against zero — the headline falsifier.** For each headline finding, look at the Newcombe-Wilson CI on the rate difference. If it straddles zero, the finding is a null result regardless of how large the per-condition rate gap appears — report it as such in §2i and Phase 3. Do not selectively cite the per-condition rates when the CI on the difference is uninformative.
 
-4. **Engage with the multiple-comparisons count.** If the analyst reports > 5 between-condition tests across all scanners and pairs, read the Bonferroni-corrected p-values. Any "would not survive multiplicity correction" flag means the finding is hypothesis-generating, not evidence — degrade your interpretation accordingly. Persistent failure to survive Bonferroni across iterations is itself a signal that the investigation is generating noise rather than findings.
+4. **Check for floor/ceiling exposure on apparent nulls — hard gate.** Per-condition rates are tagged `[floor]` (upper Wilson CI < 0.20) or `[ceiling]` (lower Wilson CI > 0.80) in the analyst's report. A between-condition null where one or both conditions carry such a tag is **not** evidence of construct equivalence — it is evidence the elicitation regime has no headroom to register the effect under that condition. Degrade any such finding to *uninformative-due-to-floor/ceiling* in §2i and Phase 3. Treat the next-iteration decision (§2j) as a metric / manipulation-strength / elicitation-regime question, not a hypothesis question — there is no point varying H when the metric cannot move. Floor/ceiling exposure also applies to between-condition differences that *do* clear the CI gate: a 90% → 70% drop and a 30% → 10% drop are both 20pp, but the headroom asymmetry shapes the interpretation, so surface the markers in §2i either way.
 
-5. **Check the reliability flag per Summary scanner.** Scanners tagged `marginal` (0.4 ≤ κ < 0.6) should not anchor your interpretation in §2i; treat them as supporting context for `reliable` findings (κ ≥ 0.6), not as headline evidence in their own right.
+5. **Engage with the multiple-comparisons count.** If the analyst reports > 5 between-condition tests across all scanners and pairs, read the Bonferroni-corrected p-values. Any "would not survive multiplicity correction" flag means the finding is hypothesis-generating, not evidence — degrade your interpretation accordingly. Persistent failure to survive Bonferroni across iterations is itself a signal that the investigation is generating noise rather than findings.
 
-6. **Check for differential attrition.** Are transcript exclusion counts balanced across conditions?
+6. **Check the reliability flag per Summary scanner.** Scanners tagged `marginal` (0.4 ≤ κ < 0.6) should not anchor your interpretation in §2i; treat them as supporting context for `reliable` findings (κ ≥ 0.6), not as headline evidence in their own right.
+
+7. **Check for differential attrition.** Are transcript exclusion counts balanced across conditions?
 
 ---
 
