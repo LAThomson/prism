@@ -40,11 +40,13 @@ Phase 3: Report to User
 
 ### What happens
 
-The user presents a research question. The orchestrator helps refine it into a testable hypothesis and gathers the information needed to begin investigation.
+The user presents a research question. The orchestrator helps articulate it as the durable scope of the investigation and refine an initial testable hypothesis that addresses it, then gathers the information needed to begin.
 
 ### Orchestrator responsibilities
 
-1. **Refine the hypothesis.** Help the user articulate a specific, testable hypothesis. A good hypothesis names a specific independent variable (what changes between conditions), a dependent variable (what is measured), and a direction (what the expected effect is). A vague question like "does the system prompt matter?" is not yet a hypothesis.
+1. **Articulate the research question and an initial testable hypothesis.** Two outputs from this step:
+   - *Research question*: a one-paragraph statement of what is being investigated. This is the durable framing the investigation will be judged against — broad enough to survive across iterations, narrow enough to constrain what counts as in-scope work. It becomes the *Research question* bullet of the Agreed Scope.
+   - *Initial hypothesis*: a specific, testable hypothesis to investigate in iteration 1. A good hypothesis names a specific independent variable (what changes between conditions), a dependent variable (what is measured), and a direction (what the expected effect is). A vague question like "does the system prompt matter?" is not yet a hypothesis. The investigation may generate further hypotheses in subsequent iterations as evidence accumulates; the research question stays put.
 
    **Methodological checks** (see `eval_science_principles.md`):
    - *Falsifiability*: Can you state what outcome would make this hypothesis wrong? If not, it is not ready to test.
@@ -73,7 +75,7 @@ The user presents a research question. The orchestrator helps refine it into a t
    - *Baseline drift policy*: If control conditions produce substantially different results across iterations, should the orchestrator re-run controls to check reproducibility (costs an extra iteration's compute) or flag the inconsistency and continue? Small sample sizes make some drift expected — agree on how much warrants action.
    - *Iteration cap*: Maximum number of investigation loop cycles before stopping, regardless of whether findings are conclusive. This prevents runaway costs on ambiguous questions.
 
-7. **Initialize the investigation directory.** Create `investigations/<investigation_name>/` at the workspace root, where `<investigation_name>` is a snake_case identifier for the research question (e.g., `agentic_misalignment_blind_spots`). All Orchestrator outputs for this investigation live here. Inside it, create `INVESTIGATION-LOG.md` to track state across iterations (see State Management below). The final `FINDINGS-REPORT.md` will be written here as a sibling at the end of the investigation (see Phase 3).
+7. **Initialize the investigation directory.** Create `investigations/<investigation_name>/` at the workspace root, where `<investigation_name>` is a snake_case identifier for the research question (e.g., `agentic_misalignment_blind_spots`). All Orchestrator outputs for this investigation live here. Inside it, create `INVESTIGATION-LOG.md` to track state across iterations (see State Management below). The final `FINDINGS-REPORT.md` will be written here as a sibling at the end of the investigation (see Phase 3). The log's `## Agreed Scope` section (filled in by the end of Phase 1) is the load-bearing reference for downstream tactical/strategic categorisation at Phase 2j — write it explicitly enough that out-of-scope decisions can be detected later by comparing a proposed action against it.
 
 ### What can go wrong
 
@@ -92,6 +94,7 @@ The user presents a research question. The orchestrator helps refine it into a t
 The request and report formats for the Explorer are defined in `explorer_interface_contract.md`. That document is the single source of truth; consult it for field-level and section-level detail.
 
 **Orchestrator work:**
+- **Precondition: write the `### Hypothesis this iteration` block before launching the Explorer.** The iteration's hypothesis must be named in the investigation log's per-iteration *Hypothesis this iteration → Statement* field before the Explorer is invoked, and the hypothesis string passed to the Explorer must match the Statement field exactly. If you find yourself about to pass a different hypothesis to the Explorer than what the block says, stop and update the block first — silent mismatches between log and Explorer input are the same failure mode as silent hypothesis swaps between iterations (see Anti-Patterns).
 - Construct the Explorer input JSON per `explorer_interface_contract.md §Request Format` and launch via CLI script (see `subagent_invocation.md`).
 - The hypothesis IS passed to the Explorer — this is the one agent that receives it directly. (The Transcript Analyst must NOT receive it.)
 - If prior iterations have narrowed the scope, pass any shaping preferences via the optional `constraints` field (e.g., "focus on system prompt and scoring; skip the scaffold directory").
@@ -377,11 +380,43 @@ Run lightweight consistency checks before interpreting findings. See `analyst_de
 
 ### Step 2j: Decide Next Action
 
+**Step 0: Classify and select among candidate actions.**
+
+Before reviewing the options below, generate the candidate actions you are seriously considering for the next iteration. For each, perform two operations:
+
+1. **Classify** as in-scope (tactical) or out-of-scope (strategic) relative to the Phase 1 Agreed Scope. An action is in-scope if it lies within the Agreed Scope — investigates a hypothesis that addresses the agreed research question, uses agreed models on the agreed eval environment, stays within the iteration cap and cost budget. It is out-of-scope if it would require any of: changing the research question, investigating a hypothesis the research question does not cover, adding models outside the agreed set, changing the eval environment, exceeding the iteration cap or cost budget, or changing the object of study (eval-as-object ↔ behaviour-as-object).
+2. **Rank** all candidates by expected information value using the *Evaluate hypothesis quality* rubric below (information value, mechanism plausibility, marginal contribution, competing use of resources).
+
+Then apply the selection rule:
+
+- If the top-ranked candidate is **in-scope**: proceed per the autonomy agreement.
+- If the top-ranked candidate is **out-of-scope**: consult the user. Present the strategic candidate and the best in-scope alternative(s), with your reasoning for why strategic looks more informative. The user decides whether to expand scope (renegotiation is allowed at any time during the investigation) or stay in scope.
+
+**Why this routing:** The cost of consulting the user has already been calibrated at scope-setting time. A user who specified a narrow scope signalled *"interrupt me on anything significant"*; a user who specified a broad scope signalled *"you have leash."* The scope IS the cost-of-consultation dial; the Orchestrator does not re-weigh that dial per iteration. Strategic candidates are not artificially suppressed; they go through the consultation channel rather than the autonomous one.
+
+If this iteration's *Surprises* entry flagged *"this suggests a move outside the agreed scope"* (final prompt of the per-iteration log), Step 0 is where that flag is operationalised: the candidate action implied by the surprise is the out-of-scope candidate to surface for consultation.
+
+Indicative classification examples (scope-dependent; not exhaustive):
+
+| Action type | Typically |
+|---|---|
+| Same hypothesis, additional conditions for a confound the scope anticipates | Tactical |
+| Same hypothesis, different parameters within the cost budget | Tactical |
+| Different model within the agreed set | Tactical |
+| Pivot to a hypothesis explicitly within an agreed survey scope | Tactical |
+| Pivot to a different hypothesis (narrow scope) | Strategic |
+| Change the object of study (eval-as-object ↔ behaviour-as-object) | Strategic |
+| Add models outside the agreed set | Strategic |
+| Exceed the agreed iteration cap or budget | Strategic |
+| Investigate a confound that requires fundamentally different conditions | Strategic |
+
+When in doubt, default to consulting (existing principle).
+
 **Options:**
 
 1. **Conclude.** The findings are clear enough to report. Proceed to Phase 3.
 
-2. **Iterate with refined hypothesis.** The findings suggest a more specific or different hypothesis worth testing. Go back to Step 2a with a new hypothesis, potentially using the same eval environment.
+2. **Iterate with refined hypothesis.** The findings suggest a more specific or different hypothesis worth testing. Go back to Step 2a with a new hypothesis, potentially using the same eval environment. *Writing the next iteration's `### Hypothesis this iteration` block in the investigation log is part of choosing this option, not documentation for later — the new hypothesis must be named in the Statement field before the next Explorer launch.*
 
 3. **Iterate with different execution parameters.** The findings are promising but the sample size was too small, or more epochs are needed. Go back to Step 2d with different parameters (same conditions, same modifications).
 
@@ -394,7 +429,7 @@ Run lightweight consistency checks before interpreting findings. See `analyst_de
 **Methodological checks before deciding** (see `eval_science_principles.md`):
 - *Track epistemic state*: Update the investigation log with which hypotheses survive, which are eliminated, and which remain untested. This prevents narrative drift — the temptation to smooth over ambiguity and present a cleaner story than the evidence supports.
 - *Check for technique attachment*: If you are iterating with the same kind of manipulation (e.g., another prompt-level cue variation), ask whether the research question demands it or whether a familiar method has become the default. The method should follow the question.
-- *Label hypothesis provenance*: If this iteration's findings are generating the hypothesis for the next iteration, that next hypothesis is not independent of the data. Label it as hypothesis-generating rather than hypothesis-testing, and flag this in the investigation log.
+- *Note hypothesis origin when iterating*: When the next iteration's hypothesis is suggested by this iteration's findings (rather than committed at Phase 1 scoping), note its origin briefly in the next iteration's *Hypothesis this iteration → Statement* — e.g. *"Test whether X drives Y, suggested by iter N's substring-artefact finding."* The log's append-only history records when each hypothesis first entered the investigation; the prose note in the Statement makes the data-suggested origin explicit, which the Phase 3 synthesis should honour by distinguishing findings that rest on hypotheses committed at investigation-start from those that emerged from earlier iterations' data.
 - *Check baseline consistency*: Compare this iteration's control condition results against previous iterations. If the same control condition produces substantially different rates across iterations (e.g., 20% in iteration 1 vs 7% in iteration 2), assess whether the difference is plausible given the sample size — small N makes large swings expected, large N makes them a red flag. If the drift looks implausible, follow the baseline drift policy agreed with the user in Phase 1: either re-run the control to check reproducibility or flag the inconsistency and continue. Do not treat baseline drift as merely a caveat for the final report — unstable controls undermine any treatment comparison built on top of them.
 
 **Evaluate hypothesis quality before committing to iterate.** Good research taste is difficult to codify, but asking the right questions helps. Before running a follow-up experiment, explicitly consider:
@@ -450,15 +485,19 @@ The orchestrator maintains `INVESTIGATION-LOG.md` at the investigation root (`in
 ```markdown
 # Investigation Log: <Investigation Name>
 
-## Hypothesis
-<current hypothesis>
-
-## Configuration
+## Agreed Scope
+- Research question: <one-paragraph statement of what is being investigated>
 - Models: <list>
 - Eval environment: <path>
 - Execution parameters: <details>
 
 ## Iteration 1
+### Scope this iteration
+Research scope unchanged since iteration 1.
+
+### Hypothesis this iteration
+- *Statement*: <one-sentence hypothesis being tested in this iteration>
+
 ### Explorer Report Summary
 - Modification sites proposed: <count and brief list>
 - Blockers flagged: <summary, or "none">
@@ -482,12 +521,31 @@ The orchestrator maintains `INVESTIGATION-LOG.md` at the investigation root (`in
 - Key patterns: <summary>
 - Supports/contradicts/ambiguous: <assessment>
 
+### Surprises
+- *Aligned with the agreed scope?*: yes / no / partially — one phrase
+- *What surprised me, if anything*: brief, honest. "Nothing" is a valid answer
+- *What this updates in my working picture*: brief — even small updates count
+- *Does this suggest a move outside the agreed scope?*: yes / no — feeds the Phase 2j in-scope check
+
 ### Decision
 <iterate/conclude/escalate> — <reasoning>
 
 ## Iteration 2
 [same structure]
 ```
+
+### How the per-iteration template behaves
+
+**The Agreed Scope is the durable reference for the whole investigation.** Once written at the end of Phase 1, it is not edited in place — the log is append-only. When scope is renegotiated with the user mid-investigation, the change is recorded in the *Scope this iteration* line of the iteration where it took effect, not by editing the top of the log. To reconstruct current scope, take the most recent *Scope this iteration* restatement and read forward from there.
+
+**Scope this iteration — two forms.** Iteration-anchored, no dates:
+
+- *Unchanged*: `Research scope unchanged since iteration K.` where K is the iteration when the current scope was set (iteration 1 by default; updated to N whenever a renegotiation happens in iteration N).
+- *Updated*: `Research scope `**`update`**` (diff vs iteration K−1): <one-line diff>. New agreed scope: [Research question: …; Models: …; Eval environment: …; Execution parameters: …].` The diff names *what* changed; the new agreed scope restates *all four fields* in full so the current state is self-contained and you don't have to scroll back through deltas to reconstruct it. Example: *"Research scope update (diff vs iteration 2): broadened to include Sonnet-4-6. New agreed scope: [Research question: how prompt framing affects refusal rates on harmful requests; Models: \[Opus-4-7, Sonnet-4-6\]; Eval environment: agentic_misalignment; Execution parameters: 50 samples × 3 epochs]."*
+
+**Hypothesis this iteration is locked once written.** Each iteration tests exactly one hypothesis, named in its *Hypothesis this iteration → Statement* field, written before launching the Explorer (Step 2a). Follow-ups, alternative angles, or more exciting avenues that the Analyst's findings or Surprises section surface during this iteration go into the *next* iteration's block — never appended to this iteration's Statement, and never quietly tested by tweaking conditions mid-flight. Cross-iteration hypothesis changes show up naturally in the next iteration's *Hypothesis this iteration* block; the log's append-only history records when each hypothesis entered the investigation.
+
+**The Surprises subsection** is a forcing function for tactical research-taste cultivation. It anchors per-iteration reflection against the Agreed Scope rather than against a rolling working picture — this is what makes the design anti-drift. *"Nothing surprising"* is a valid entry; the discipline is in asking, not in finding. The final prompt (*Does this suggest a move outside the agreed scope?*) is the bridge to Phase 2j Step 0: a `yes` here surfaces the strategic candidate that Step 0 routes through user consultation. See `eval_science_principles.md` §1 (Strong Inference, *tracking epistemic state*) and §2 (*narrative coherence as a warning sign*) for the methodological backbone.
 
 ### Why state management matters
 
@@ -608,3 +666,5 @@ If Model A succeeded but Model B failed entirely, the orchestrator can still sen
 9. **Reading eval results before the Analyst reports.** The orchestrator must not read log file contents, extract scores, or compute metrics between the Executor completing and the Analyst reporting. The Executor's report provides sufficient information (Execution Matrix status, Error Summary, Transcript Termination Metadata) to decide whether to proceed. Reading scores early primes the orchestrator to seek confirmation rather than genuinely interpreting the Analyst's blinded findings.
 
 10. **Doing a sub-agent's job yourself.** Running `inspect eval` directly instead of through the Executor; reading the eval's source to pick perturbation sites instead of tasking the Explorer; grepping or reading transcripts to surface behavioural patterns instead of delegating to the Analyst. Each sub-agent owns its stage exclusively. Even when it seems faster, or the eval looks simple enough to handle directly, bypassing a sub-agent forfeits the scaffold's guarantees — most critically the analyst firewall — and is the most common way an investigation silently loses its integrity. The bypass is rarely a deliberate decision; it is usually an *omission* — you reach for `inspect eval` without ever pausing to ask "should the Executor do this?" Build the habit of that pause. The only legitimate bypass is a genuine sub-agent failure, handled per the Sub-Agent Failure Handling section.
+
+11. **Silently swapping the hypothesis between iterations, or within an iteration.** Each iteration tests exactly one hypothesis, named in its `### Hypothesis this iteration → Statement` field and locked for the duration of that iteration. *Between iterations:* if iteration N+1 tests something even subtly different from iteration N, the new hypothesis must be written into iteration N+1's Statement field as part of the Step 2j Option 2 decision, not retrofitted later. *Within an iteration:* follow-ups, alternative angles, or more exciting avenues that the Analyst's findings or the *Surprises* section surface mid-flight go into the *next* iteration's block — never appended to this iteration's Statement, and never quietly tested by tweaking conditions or scanner questions partway through. A change that goes unnamed cannot be audited, cannot be retracted, and cannot be re-tested. "No change" is a valid answer; "silently different" is not.
