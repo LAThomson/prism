@@ -453,6 +453,8 @@ These questions don't have mechanical answers. They require judgement — the ki
 
 ## Phase 3: Report to User
 
+**Audience and register.** Write as if reporting back to a supervisor who's familiar with the research question but didn't run the experiments. The mental benchmark: *"If I had run these experiments myself, how would I write this up for my supervisor?"* Even though the typical user is a frontier safety researcher, the report should lean toward slightly conversational supervisor-report register — plainer English over compact scientific phrasing, explicit reasoning about *why* a step was taken, clear narrative flow from start to finish. Earn the reader's attention with clearer prose; readability is part of the artefact's purpose. Concrete example: prefer *"the eval is set up so the model can only email Kyle"* over *"engineers no legitimate escalation path"* — the second is denser but does no extra work, and dense scientific phrasing is the failure mode reports drift toward when the audience is left implicit.
+
 **Report structure:** Lead with the headline, then provide supporting evidence. The user should be able to stop reading after the first paragraph and understand the core finding.
 
 **Orchestrator work:**
@@ -472,6 +474,7 @@ These questions don't have mechanical answers. They require judgement — the ki
 **Self-checks before presenting:**
 
 - **Check for narrative coherence** (see `eval_science_principles.md`). If the report reads like a clean story where each iteration builds naturally on the last, this is a warning sign. Check whether contradictions, ambiguities, or null results have been smoothed over. A messy but honest account is more valuable than a tidy but misleading one.
+- **Distinguish considered-and-rejected from never-considered.** Limitations should describe decisions you actually made at decision-time, not justifications reverse-engineered from the result. If you skipped a step (e.g. an Analyst pass, a confound check, a multi-provider sweep), write *"I did not consider X"* rather than *"X was unnecessary because…"*. The two are very different epistemic states: the first acknowledges a gap; the second claims a deliberation that didn't happen. This failure mode is harder to spot than narrative-coherence smoothing because it lives in the limitations section — the place a reader trusts to be honest about the report's weaknesses. Before finalising, scan each limitation against the investigation log: if a limitation has no decision-time counterpart in the log or transcript, rewrite it as an honest gap acknowledgement.
 - **Distinguish evidence strength.** Be clear about whether findings are strong (large effect, consistent across transcripts), moderate (present but variable), or weak (observed in a few cases, potentially noise).
 - **Use mechanistic language.** Describe what happened, not what the model "thought" or "wanted."
 - **Do not synthesise across iterations prematurely.** Each iteration tests a single IV. Report each finding on its own terms. Do not combine results from separate iterations into a joint causal claim (e.g., "A and B are both necessary conditions") unless the interaction has actually been tested in a factorial design. You may note that a combined explanation is *suggested* by the pattern, but label it explicitly as an untested hypothesis rather than a conclusion. Premature synthesis is a form of narrative coherence that overstates the evidence.
@@ -482,7 +485,7 @@ These questions don't have mechanical answers. They require judgement — the ki
 
 ### Investigation Log
 
-The orchestrator maintains `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`). It is updated at every decision point and captures cumulative per-iteration state. It is distinct from `FINDINGS-REPORT.md`, which is the final standalone synthesis written once at the end (see Phase 3); never append the findings report to the log. Structure:
+The orchestrator maintains `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`). It is updated **incrementally as each step's sub-section becomes fillable** — write *Hypothesis this iteration* before Step 2a, fill *Explorer Report Summary* after the Explorer returns, *Executor Results* after the Executor returns, *Analyst Findings* after the Analyst returns, *Surprises* after Step 2i, and *Decision* (with any *Runner-up candidates carried forward*) after Step 2j. Don't defer multiple subsections to end-of-iteration: cumulative deferral risks loss-on-interruption, and the per-section state is exactly what survives compaction or session resumption. It is distinct from `FINDINGS-REPORT.md`, which is the final standalone synthesis written once at the end (see Phase 3); never append the findings report to the log. Structure:
 
 ```markdown
 # Investigation Log: <Investigation Name>
