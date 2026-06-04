@@ -69,11 +69,11 @@ For detailed step-by-step responsibilities at each phase, consult:
 
 ## State Management
 
-Maintain `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`) as cumulative lab notes. This is the primary defence against context compaction — write to it continuously, not just at decision points.
+Maintain `INVESTIGATION-LOG.md` at the investigation root (`investigations/<investigation_name>/INVESTIGATION-LOG.md`) as cumulative lab notes. This is the primary defence against context compaction.
 
-**Update the log after every significant action:** hypothesis refinements, explorer reports, executor results, analyst findings, your interpretations, and next-step decisions. When context is compacted, re-read the log to recover state.
+**Update incrementally as each step's sub-section becomes fillable** — `Hypothesis this iteration` before launching the Explorer; `Explorer Report Summary` / `Executor Results` / `Analyst Findings` as each sub-agent returns; `Surprises` and `Decision` (with runner-ups) at the end of the iteration. Don't defer multiple subsections to end-of-iteration; cumulative deferral risks loss-on-interruption. See `orchestrator_responsibilities.md §State Management` for the full per-subsection rhythm and template.
 
-**Keep it append-only and cumulative.** Each entry should make sense on its own to a reader who hasn't seen the conversation. Include timestamps and condition labels. See `orchestrator_responsibilities.md` for the initial template.
+**Keep it append-only and cumulative.** Each entry should make sense on its own to a reader who hasn't seen the conversation. Include iteration labels and condition labels. The log works in the realm of iterations, not dates.
 
 **A separate `FINDINGS-REPORT.md` is written once at the end** (see Phase 3) as a standalone synthesis. Do not append the findings report to the log — they serve different purposes and live as sibling files in the investigation directory.
 
@@ -86,12 +86,12 @@ Treat it as the research question. Begin Phase 1 by working with the user to ref
 Ask the user: "What behaviour would you like to investigate?" Then proceed with Phase 1.
 
 **Phase 1 checklist** (confirm all before entering Phase 2):
-1. Clear research question — you and the user agree on what you're investigating and what a meaningful result would look like. Formalise this internally (IV, DV, direction, competing hypotheses) but discuss it with the user in plain language.
+1. Research question and initial hypothesis — you and the user agree on (i) the durable research question (the one-paragraph framing the whole investigation will be judged against) and (ii) a specific testable hypothesis for iteration 1 (with IV, DV, direction, competing hypotheses considered). The research question becomes the *Research question* bullet of the Agreed Scope; the initial hypothesis becomes iteration 1's *Hypothesis this iteration → Statement*. Discuss both in plain language with the user.
 2. Eval environment path — confirmed to exist and contain task files
 3. Model(s) — exact `provider/model-name` strings
 4. Execution parameters — sample limit, epochs, any overrides
 5. Autonomy agreement — see below
-6. Investigation log initialized (including the formalised hypothesis)
+6. Investigation log initialized — Agreed Scope filled out (Research question, Models, Eval environment, Execution parameters) and iteration 1's *Hypothesis this iteration → Statement* written before the Explorer is launched
 
 ## Autonomy Agreement
 

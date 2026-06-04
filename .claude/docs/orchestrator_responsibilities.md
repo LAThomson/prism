@@ -4,7 +4,7 @@ This document specifies everything the orchestrator (main Claude Code agent) mus
 
 ## Role
 
-The orchestrator is the only agent that talks to the user, holds the hypothesis, and makes scientific decisions. Think of it as the **principal investigator**: it directs three specialist sub-agents and synthesises their work into findings, but it does not do their work itself. Each sub-agent owns a stage exclusively:
+The orchestrator is the only agent that talks to the user, holds the research question and the current iteration's hypothesis, and makes scientific decisions. Think of it as the **principal investigator**: it directs three specialist sub-agents and synthesises their work into findings, but it does not do their work itself. Each sub-agent owns a stage exclusively:
 
 | Agent | Receives | Returns |
 |-------|----------|---------|
@@ -418,7 +418,7 @@ When in doubt, default to consulting (existing principle).
 
 1. **Conclude.** The findings are clear enough to report. Proceed to Phase 3.
 
-2. **Iterate with refined hypothesis.** The findings suggest a more specific or different hypothesis worth testing. Go back to Step 2a with a new hypothesis, potentially using the same eval environment. *Writing the next iteration's `### Hypothesis this iteration` block in the investigation log is part of choosing this option, not documentation for later — the new hypothesis must be named in the Statement field before the next Explorer launch.*
+2. **Iterate with refined hypothesis.** The findings suggest a more specific or different hypothesis worth testing. Go back to Step 2a with a new hypothesis, potentially using the same eval environment.
 
 3. **Iterate with different execution parameters.** The findings are promising but the sample size was too small, or more epochs are needed. Go back to Step 2d with different parameters (same conditions, same modifications).
 
@@ -426,10 +426,12 @@ When in doubt, default to consulting (existing principle).
 
 5. **Escalate to user.** The findings are ambiguous, the orchestrator is unsure how to proceed, or the investigation has reached the limits of what's useful without human judgment. Present what's been found and ask for direction.
 
+*For any iterate option (2–4): writing the next iteration's `### Hypothesis this iteration → Statement` in the investigation log is part of the decision, not documentation for later. The hypothesis must be named in the Statement field before the next Explorer launch — even when Options 3 or 4 continue with the same hypothesis as this iteration, a fresh Statement block must exist for the new iteration (carrying the same Statement forward is fine; what isn't fine is launching the next iteration without the block).*
+
 **Respect the autonomy agreement.** Before deciding to iterate, check the autonomy agreement from Phase 1. If the user requested check-ins after each iteration, present findings and proposed next steps rather than proceeding. When in doubt, default to pausing.
 
 **Methodological checks before deciding** (see `eval_science_principles.md`):
-- *Track epistemic state*: Update the investigation log with which hypotheses survive, which are eliminated, and which remain untested. This prevents narrative drift — the temptation to smooth over ambiguity and present a cleaner story than the evidence supports.
+- *Track epistemic state*: The three states map to three structural anchors in the log — hypotheses that *survive* appear as Statements in subsequent iterations' *Hypothesis this iteration* blocks; hypotheses that are *eliminated* are named in the iteration's *Decision* reasoning with retirement notes; hypotheses that *remain untested* live in the *Runner-up candidates carried forward* list. Keeping these three populated honestly prevents narrative drift — the temptation to smooth over ambiguity and present a cleaner story than the evidence supports.
 - *Check for technique attachment*: If you are iterating with the same kind of manipulation (e.g., another prompt-level cue variation), ask whether the research question demands it or whether a familiar method has become the default. The method should follow the question.
 - *Note hypothesis origin when iterating*: When the next iteration's hypothesis is suggested by this iteration's findings (rather than committed at Phase 1 scoping), note its origin briefly in the next iteration's *Hypothesis this iteration → Statement* — e.g. *"Test whether X drives Y, suggested by iter N's substring-artefact finding."* The log's append-only history records when each hypothesis first entered the investigation; the prose note in the Statement makes the data-suggested origin explicit, which the Phase 3 synthesis should honour by distinguishing findings that rest on hypotheses committed at investigation-start from those that emerged from earlier iterations' data.
 - *Check baseline consistency*: Compare this iteration's control condition results against previous iterations. If the same control condition produces substantially different rates across iterations (e.g., 20% in iteration 1 vs 7% in iteration 2), assess whether the difference is plausible given the sample size — small N makes large swings expected, large N makes them a red flag. If the drift looks implausible, follow the baseline drift policy agreed with the user in Phase 1: either re-run the control to check reproducibility or flag the inconsistency and continue. Do not treat baseline drift as merely a caveat for the final report — unstable controls undermine any treatment comparison built on top of them.

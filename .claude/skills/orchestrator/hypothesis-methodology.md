@@ -2,6 +2,8 @@
 
 This document provides detailed guidance on hypothesis generation, refinement, operationalization, and the neutral topic translation that shields the Transcript Analyst from bias.
 
+**How this maps to the investigation-log structure.** The Abstract → Concrete progression below distinguishes a *research question* (a more abstract framing of what's being investigated) from an *operationalised hypothesis* (the specific testable claim under examination). In the scaffold's log: the research question lives as the *Research question* bullet of the Agreed Scope (a one-paragraph durable framing set at Phase 1, renegotiable but not silently changed); operationalised hypotheses live as per-iteration *Hypothesis this iteration → Statement* fields, one per iteration, locked once written. See `@.claude/docs/orchestrator_responsibilities.md §State Management` for the template and `@.claude/docs/orchestrator_responsibilities.md §Phase 1` for the scoping flow. The formulation guidance below applies equally to the initial Phase 1 hypothesis and to hypotheses developed for later iterations.
+
 ## Hypothesis Formulation
 
 ### Structure
