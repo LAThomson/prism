@@ -382,7 +382,7 @@ Run lightweight consistency checks before interpreting findings. See `analyst_de
 
 **Step 0: Classify and select among candidate actions.**
 
-Before reviewing the options below, generate the candidate actions you are seriously considering for the next iteration. For each, perform two operations:
+Before reviewing the options below, generate the candidate actions you are seriously considering for the next iteration. **Begin by reviewing prior iterations' *Runner-up candidates carried forward* lists** — these are the alternatives you previously deemed worth revisiting; consider each alongside fresh candidates suggested by this iteration's findings and *Surprises*. If a prior runner-up is no longer worth pursuing (e.g. already addressed by another iteration's findings), note why it's being retired in this iteration's *Decision* reasoning rather than silently dropping it. For each surviving candidate (whether carried-forward or fresh), perform two operations:
 
 1. **Classify** as in-scope (tactical) or out-of-scope (strategic) relative to the Phase 1 Agreed Scope. An action is in-scope if it lies within the Agreed Scope — investigates a hypothesis that addresses the agreed research question, uses agreed models on the agreed eval environment, stays within the iteration cap and cost budget. It is out-of-scope if it would require any of: changing the research question, investigating a hypothesis the research question does not cover, adding models outside the agreed set, changing the eval environment, exceeding the iteration cap or cost budget, or changing the object of study (eval-as-object ↔ behaviour-as-object).
 2. **Rank** all candidates by expected information value using the *Evaluate hypothesis quality* rubric below (information value, mechanism plausibility, marginal contribution, competing use of resources).
@@ -528,7 +528,12 @@ Research scope unchanged since iteration 1.
 - *Does this suggest a move outside the agreed scope?*: yes / no — feeds the Phase 2j in-scope check
 
 ### Decision
-<iterate/conclude/escalate> — <reasoning>
+<iterate/conclude/escalate> — <reasoning, including any retirements of prior-iteration runner-ups with one-line reasons>
+
+#### Runner-up candidates carried forward
+- <Candidate A>: <one-line description> — <one-line: why not chosen this iteration, why still worth pursuing>
+- <Candidate B>: …
+- ("None" is a valid entry.)
 
 ## Iteration 2
 [same structure]
@@ -546,6 +551,8 @@ Research scope unchanged since iteration 1.
 **Hypothesis this iteration is locked once written.** Each iteration tests exactly one hypothesis, named in its *Hypothesis this iteration → Statement* field, written before launching the Explorer (Step 2a). Follow-ups, alternative angles, or more exciting avenues that the Analyst's findings or Surprises section surface during this iteration go into the *next* iteration's block — never appended to this iteration's Statement, and never quietly tested by tweaking conditions mid-flight. Cross-iteration hypothesis changes show up naturally in the next iteration's *Hypothesis this iteration* block; the log's append-only history records when each hypothesis entered the investigation.
 
 **The Surprises subsection** is a forcing function for tactical research-taste cultivation. It anchors per-iteration reflection against the Agreed Scope rather than against a rolling working picture — this is what makes the design anti-drift. *"Nothing surprising"* is a valid entry; the discipline is in asking, not in finding. The final prompt (*Does this suggest a move outside the agreed scope?*) is the bridge to Phase 2j Step 0: a `yes` here surfaces the strategic candidate that Step 0 routes through user consultation. See `eval_science_principles.md` §1 (Strong Inference, *tracking epistemic state*) and §2 (*narrative coherence as a warning sign*) for the methodological backbone.
+
+**Runner-up candidates carried forward** are how the *competing use of resources* discipline (Step 2j) persists across iterations. Without a structured list, runner-ups raised at iteration N can silently die under context-window pressure — exactly the depth-first-search failure mode that loses good alternatives in favour of always pressing onwards. The list lives in each iteration's *Decision* block (append-only-clean) and is the first thing the next iteration's Step 0 reviews. *"None"* is a valid entry; not every iteration has runner-ups worth carrying forward. Carry-forward entries persist until either (i) they become the chosen action of a later iteration, in which case they migrate into that iteration's *Hypothesis this iteration → Statement*, or (ii) they are explicitly retired in a later iteration's *Decision* reasoning with a one-line reason (e.g. *"Retired candidate X from iter 2: already addressed by iter 4's substring-artefact finding."*). Silently dropping a candidate from the carry-forward list — without explanation — defeats the auditability the structure exists to provide; the discipline is in the explicit retirement note, not in keeping every prior runner-up alive forever.
 
 ### Why state management matters
 
