@@ -12,7 +12,7 @@ SCAFFOLD_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_DIR="${1:?Usage: ./install.sh /path/to/target_repo}"
 
 # In-container path where the scaffold will be mounted.
-CONTAINER_SCAFFOLD="/home/inspect/auto-SoE-agent"
+CONTAINER_SCAFFOLD="/home/inspect/prism"
 
 if [ ! -d "$TARGET_DIR" ]; then
     echo "Error: $TARGET_DIR is not a directory"
@@ -156,7 +156,7 @@ if [ -f "$TARGET_DIR/.gitignore" ] && [ ! -f "$TARGET_DIR/.gitignore.pre-scaffol
 fi
 GITIGNORE_ENTRIES=(
     ""
-    "# Eval Science Scaffold (symlinks managed by auto-SoE-agent/install.sh)"
+    "# Eval Science Scaffold (symlinks managed by prism/install.sh)"
     "subagents/"
     "scripts/execute_evals.py"
     ".claude/docs/analyst_delegation_guide.md"

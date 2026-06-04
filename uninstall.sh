@@ -9,7 +9,7 @@ set -euo pipefail
 
 SCAFFOLD_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_DIR="${1:?Usage: ./uninstall.sh /path/to/target_repo}"
-CONTAINER_SCAFFOLD="/home/inspect/auto-SoE-agent"
+CONTAINER_SCAFFOLD="/home/inspect/prism"
 
 if [ ! -d "$TARGET_DIR" ]; then
     echo "Error: $TARGET_DIR is not a directory"

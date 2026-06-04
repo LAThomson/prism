@@ -1,12 +1,23 @@
-# Automating Science-of-Evals Research
+<img src="docs/prism-icon.png" alt="Prism icon" width="206" align="left">
+
+# Prism: Automating Science-of-Evals Research for AI Safety
+
+**Prism** is a scaffold for automating science-of-evaluations research in [Inspect AI](https://inspect.aisi.org.uk/) evaluations, built on [Claude Code](https://claude.com/product/claude-code), [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) and the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents/claude-agent-sdk).
+
+The scaffold has two primary use cases:
+
+- **Understanding evaluation dynamics** in frontier evals, e.g.:
+  - *"How does feature X in this evaluation setting impact model behaviours?"*
+  - *"Please identify any confounds that mean this eval isn't measuring what it claims to measure."*)
+- **Stress-testing explanations** for observed model behaviours, e.g.:
+  - *"Is our current interpretation of model behaviour Y the simplest, most robust explanation?"*
+  - *"Which features of the eval are causally relevant for eliciting this particular behaviour?"*)
 
 <p align="center">
   <img src="docs/scaffold-diagram.png" alt="Scaffold architecture: User talks to an Orchestrator, which delegates to an Environment Explorer, Experiment Executor, and Transcript Analyst (behind a hypothesis firewall)" width="500">
 </p>
 
-A scaffold for automating science-of-evaluations research in [Inspect AI](https://inspect.aisi.org.uk/) evaluations, built on [Claude Code](https://claude.com/product/claude-code), [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) and the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents/claude-agent-sdk).
-
-The Orchestrator agent (launched with the `/orchestrator [research question]` skill) begins by discussing the research question with the User to define its scope. It then runs the following loop, continually updating an append-only investigation log to preserve the epistemic trajectory:
+The Orchestrator agent (launched with the `/orchestrator` skill) begins by discussing the research question with the User to define its scope. It then runs the following loop, recording each iteration in an append-only investigation log:
 
 1. **Generate falsifiable hypotheses** that are relevant and targeted to the research scope defined in the discussion phase;
 2. Ask the *Environment Explorer* sub-agent to **identify informative, minimal perturbations** in the target eval setting;
@@ -27,14 +38,14 @@ When finished, the Orchestrator produces a structured report for the User that s
 
 ```bash
 # Clone the scaffold and your target eval repo side by side
-git clone <this-repo> auto-SoE-agent
+git clone <this-repo> prism
 git clone <your-inspect-ai-eval-repo>
 cd <your-inspect-ai-eval-repo>
 
 # Install the scaffold into the target repo. This symlinks the scaffold's
 # files in and updates .gitignore. If the target repo has a devcontainer,
 # it also patches devcontainer.json to mount the scaffold into the container.
-/path/to/auto-SoE-agent/install.sh .
+/path/to/prism/install.sh .
 
 # Add your API keys to a `.env` file (loaded automatically by the sub-agents).
 # ANTHROPIC_API_KEY is always required; add OPENAI_API_KEY only if your
@@ -46,15 +57,15 @@ echo "OPENAI_API_KEY=sk-..." >> .env  # optional
 # /orchestrator [your research question]
 
 # To uninstall (remove symlinks and revert target repo changes):
-# /path/to/auto-SoE-agent/uninstall.sh .
+# /path/to/prism/uninstall.sh .
 ```
 
-> **How the scaffold is reached.** The installed symlinks resolve to `/home/inspect/auto-SoE-agent`, so the scaffold must be available at that path wherever Claude Code runs. If your target repo uses a devcontainer, `install.sh` wires this up automatically; otherwise (whatever editor or workflow you use) make the scaffold available at that path yourself — e.g. clone or mount it there.
+> **How the scaffold is reached.** The installed symlinks resolve to `/home/inspect/prism`, so the scaffold must be available at that path wherever Claude Code runs. If your target repo uses a devcontainer, `install.sh` wires this up automatically; otherwise (whatever editor or workflow you use) make the scaffold available at that path yourself — e.g. clone or mount it there.
 
 ## Directory Structure
 
 ```
-auto-SoE-agent/
+prism/
 ├── subagents/
 │   ├── runner.py                  # Shared SDK runner + hooks
 │   ├── cli.py                     # Shared CLI boilerplate
