@@ -8,10 +8,10 @@ The scaffold has two primary use cases:
 
 - **Understanding evaluation dynamics** in frontier evals, e.g.:
   - *"How does feature X in this evaluation setting impact model behaviours?"*
-  - *"Please identify any confounds that mean this eval isn't measuring what it claims to measure."*)
+  - *"Please identify any confounds that mean this eval isn't measuring what it claims to measure."*
 - **Stress-testing explanations** for observed model behaviours, e.g.:
   - *"Is our current interpretation of model behaviour Y the simplest, most robust explanation?"*
-  - *"Which features of the eval are causally relevant for eliciting this particular behaviour?"*)
+  - *"Which features of the eval are causally relevant for eliciting this particular behaviour?"*
 
 <p align="center">
   <img src="docs/scaffold-diagram.png" alt="Scaffold architecture: User talks to an Orchestrator, which delegates to an Environment Explorer, Experiment Executor, and Transcript Analyst (behind a hypothesis firewall)" width="500">
