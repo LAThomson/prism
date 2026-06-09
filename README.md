@@ -2,32 +2,31 @@
 
 # Prism: Automating Science-of-Evals Research for AI Safety
 
-**Prism** is a scaffold for automating science-of-evaluations research in [Inspect AI](https://inspect.aisi.org.uk/) evaluations, built on [Claude Code](https://claude.com/product/claude-code), [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) and the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents/claude-agent-sdk).
+**Prism** is a scaffold for automating science-of-evaluations research and model incrimination investigations in [Inspect AI](https://inspect.aisi.org.uk/) evaluations, built on [Claude Code](https://claude.com/product/claude-code), [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) and the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents/claude-agent-sdk).
 
-The scaffold has two primary use cases:
+Prism ships two skills:
 
-- **Understanding evaluation dynamics** in frontier evals, e.g.:
-  - *"How does feature X in this evaluation setting impact model behaviours?"*
-  - *"Please identify any confounds that mean this eval isn't measuring what it claims to measure."*)
-- **Stress-testing explanations** for observed model behaviours, e.g.:
-  - *"Is our current interpretation of model behaviour Y the simplest, most robust explanation?"*
-  - *"Which features of the eval are causally relevant for eliciting this particular behaviour?"*)
+### `/orchestrator` — hypothesis-first investigation
 
-<p align="center">
-  <img src="docs/scaffold-diagram.png" alt="Scaffold architecture: User talks to an Orchestrator, which delegates to an Environment Explorer, Experiment Executor, and Transcript Analyst (behind a hypothesis firewall)" width="500">
-</p>
+Start here when you have a specific hypothesis about what drives model behaviour and want to test it. Provide a research question; the Orchestrator refines it into a hypothesis with you, then runs an autonomous experiment loop:
 
-The Orchestrator agent (launched with the `/orchestrator` skill) begins by discussing the research question with the User to define its scope. It then runs the following loop, recording each iteration in an append-only investigation log:
+1. The *Environment Explorer* identifies minimal, isolated perturbations in the eval;
+2. The *Experiment Executor* runs all conditions with preflight validation and error recovery;
+3. The *Transcript Analyst* surfaces behavioural patterns behind a hypothesis firewall (it never sees the hypothesis); and
+4. The Orchestrator interprets findings, iterates if needed, and delivers a structured report.
 
-1. **Generate falsifiable hypotheses** that are relevant and targeted to the research scope defined in the discussion phase;
-2. Ask the *Environment Explorer* sub-agent to **identify informative, minimal perturbations** in the target eval setting;
-3. Use the *Experiment Executor* sub-agent to **run the eval variations**, handling parallelism, error recovery, and logging;
-4. Give the *Transcript Analyst* sub-agent a neutral topic description from which it can **surface relevant behavioural patterns** in the eval outputs, importantly without it ever directly seeing the original hypothesis; and
-5. **Collate and interpret results** from the Analyst, then determine whether to iterate, conclude, or check in with the User.
+### `/investigate` — behavior-first model incrimination
 
-When finished, the Orchestrator produces a structured report for the User that summarises the key findings, caveats, and potential next steps.
+Start here when you have observed concerning behavior and want to determine whether it reflects misalignment. Provide an eval path and a set of scored transcripts; the investigation runs fully autonomously:
 
-> **Recommended models.** We observed diminished compliance and less effective use of the scaffold's resources when running the Orchestrator on older models (e.g. Opus 4.5). We therefore recommend running the Orchestrator on the most recent Claude models for the best results.
+1. The *Eval Reader* maps the eval's structure, pipeline, and how to run it;
+2. The *CoT Analyst* reads the chain-of-thought to generate competing hypotheses — distinguishing benign causes (confusion, laziness, instruction-following) from malign ones (strategic deception, scheming);
+3. The *Experiment Designer* turns the chosen hypothesis into concrete perturbations, proposing both binary and parametric conditions;
+4. The *Experiment Executor* runs all conditions;
+5. The *CoT Analyst* returns (blinded) to quantify behavioural differences statistically; and
+6. The *Reviewer* adversarially checks the conclusions against the model incrimination standard — does the evidence actually establish scheming, or do benign explanations survive?
+
+> **Recommended models.** We observed diminished compliance and less effective use of the scaffold's resources when running these skills on older models (e.g. Opus 4.5). We recommend the most recent Claude models for the best results.
 
 ## Prerequisites
 
@@ -53,8 +52,13 @@ cd <your-inspect-ai-eval-repo>
 echo "ANTHROPIC_API_KEY=sk-..." >> .env
 echo "OPENAI_API_KEY=sk-..." >> .env  # optional
 
-# Launch Claude Code in the target repo and start an investigation:
-# /orchestrator [your research question]
+# Launch Claude Code in the target repo and start an investigation.
+#
+# Hypothesis-first (you have a research question):
+#   /orchestrator [your research question]
+#
+# Behavior-first (you have transcripts and want to know why):
+#   /investigate <path/to/eval> <path/to/transcripts> [research question]
 
 # To uninstall (remove symlinks and revert target repo changes):
 # /path/to/prism/uninstall.sh .
@@ -69,12 +73,17 @@ prism/
 ├── subagents/
 │   ├── runner.py                  # Shared SDK runner + hooks
 │   ├── cli.py                     # Shared CLI boilerplate
-│   ├── environment_explorer/      # Eval environment analysis
-│   ├── experiment_executor/       # Runs Inspect AI evals
-│   └── transcript_analyst/        # Blinded transcript analysis
+│   ├── environment_explorer/      # /orchestrator: eval environment analysis
+│   ├── experiment_executor/       # Both skills: runs Inspect AI evals
+│   ├── transcript_analyst/        # /orchestrator: blinded transcript analysis
+│   ├── eval_reader/               # /investigate: eval structure + run instructions
+│   ├── cot_analyst/               # /investigate: CoT hypothesis generation + blinded analysis
+│   ├── experiment_designer/       # /investigate: binary + parametric perturbation design
+│   └── reviewer/                  # /investigate: adversarial model incrimination check
 ├── .claude/
-│   ├── docs/                      # Orchestrator reference documents
-│   ├── skills/orchestrator/       # Orchestrator skill definition
+│   ├── docs/                      # Reference documents and interface contracts
+│   ├── skills/orchestrator/       # /orchestrator skill definition
+│   ├── skills/investigate/        # /investigate skill definition
 │   └── settings.json              # Claude Code permissions
 ├── scripts/
 │   └── execute_evals.py           # Parallel eval execution engine

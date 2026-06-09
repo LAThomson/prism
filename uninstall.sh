@@ -118,14 +118,38 @@ unlink_file "subagents/transcript_analyst/agent.py"
 unlink_file "subagents/transcript_analyst/main.py"
 unlink_file "subagents/transcript_analyst/system_prompt.py"
 
+unlink_file "subagents/eval_reader/__init__.py"
+unlink_file "subagents/eval_reader/agent.py"
+unlink_file "subagents/eval_reader/main.py"
+unlink_file "subagents/eval_reader/system_prompt.py"
+
+unlink_file "subagents/cot_analyst/__init__.py"
+unlink_file "subagents/cot_analyst/agent.py"
+unlink_file "subagents/cot_analyst/main.py"
+unlink_file "subagents/cot_analyst/system_prompt.py"
+
+unlink_file "subagents/experiment_designer/__init__.py"
+unlink_file "subagents/experiment_designer/agent.py"
+unlink_file "subagents/experiment_designer/main.py"
+unlink_file "subagents/experiment_designer/system_prompt.py"
+
+unlink_file "subagents/reviewer/__init__.py"
+unlink_file "subagents/reviewer/agent.py"
+unlink_file "subagents/reviewer/main.py"
+unlink_file "subagents/reviewer/system_prompt.py"
+
 # .claude/docs
 unlink_file ".claude/docs/analyst_delegation_guide.md"
 unlink_file ".claude/docs/analyst_interface_contract.md"
+unlink_file ".claude/docs/cot_analyst_interface_contract.md"
+unlink_file ".claude/docs/eval_reader_interface_contract.md"
 unlink_file ".claude/docs/eval_science_principles.md"
 unlink_file ".claude/docs/executor_interface_contract.md"
+unlink_file ".claude/docs/experiment_designer_interface_contract.md"
 unlink_file ".claude/docs/explorer_interface_contract.md"
 unlink_file ".claude/docs/inspect_reference.md"
 unlink_file ".claude/docs/orchestrator_responsibilities.md"
+unlink_file ".claude/docs/reviewer_interface_contract.md"
 unlink_file ".claude/docs/scout_reference.md"
 unlink_file ".claude/docs/subagent_invocation.md"
 
@@ -133,6 +157,9 @@ unlink_file ".claude/docs/subagent_invocation.md"
 unlink_file ".claude/skills/orchestrator/SKILL.md"
 unlink_file ".claude/skills/orchestrator/experimental-design-patterns.md"
 unlink_file ".claude/skills/orchestrator/hypothesis-methodology.md"
+
+# .claude/skills/investigate
+unlink_file ".claude/skills/investigate/SKILL.md"
 
 # .claude/settings.json
 unlink_file ".claude/settings.json"
@@ -162,9 +189,14 @@ for dir in \
     "$TARGET_DIR/subagents/environment_explorer" \
     "$TARGET_DIR/subagents/experiment_executor" \
     "$TARGET_DIR/subagents/transcript_analyst" \
+    "$TARGET_DIR/subagents/eval_reader" \
+    "$TARGET_DIR/subagents/cot_analyst" \
+    "$TARGET_DIR/subagents/experiment_designer" \
+    "$TARGET_DIR/subagents/reviewer" \
     "$TARGET_DIR/subagents" \
     "$TARGET_DIR/.claude/docs" \
     "$TARGET_DIR/.claude/skills/orchestrator" \
+    "$TARGET_DIR/.claude/skills/investigate" \
     "$TARGET_DIR/.claude/skills"; do
     if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
         rmdir "$dir"

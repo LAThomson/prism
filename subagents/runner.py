@@ -10,6 +10,7 @@ from claude_agent_sdk import (
     HookMatcher,
     ProcessError,
     ResultMessage,
+    ThinkingConfig,
     query,
 )
 
@@ -144,6 +145,7 @@ async def run_agent(
     memory_file: str | None = None,
     restrict_writes_to_memory: bool = True,
     model: str | None = None,
+    thinking: ThinkingConfig | None = None,
 ) -> str:
     """Run an Agent SDK agent and return its output.
 
@@ -214,6 +216,7 @@ async def run_agent(
         permission_mode="bypassPermissions",
         max_turns=100,
         cwd=working_dir,
+        thinking=thinking if thinking is not None else {"type": "adaptive"},
         **({"hooks": hooks} if hooks else {}),
     )
 

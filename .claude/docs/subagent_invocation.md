@@ -112,3 +112,121 @@ The `subagent_model` is an infrastructure choice; the others are part of the exp
 - When `artefacts_dir` is provided, the analyst writes all file outputs to `<artefacts_dir>/analyst/`
 
 **Returns**: Scanner definitions, validation metrics, quantified results (per-condition detection rates), scan results path, transcript exclusions, transcript excerpts, additional observations. See `analyst_interface_contract.md` for the full report format.
+
+---
+
+## `/investigate` skill sub-agents
+
+The following sub-agents are used by the `/investigate` skill. They are separate from the `/orchestrator` pipeline above.
+
+## Eval Reader
+
+**Script**: `subagents/eval_reader/main.py`
+
+**Input JSON**:
+```json
+{
+    "eval_path": "/absolute/path/to/eval/environment",
+    "subagent_model": "claude-opus-4-7"
+}
+```
+
+- `eval_path` must be an existing directory
+- `subagent_model` is optional
+
+**Returns**: Structured markdown report. See `eval_reader_interface_contract.md` for the full report format.
+
+## CoT Analyst
+
+**Script**: `subagents/cot_analyst/main.py`
+
+**Input JSON — call 1 (hypothesis generation)**:
+```json
+{
+    "mode": "hypothesis_generation",
+    "eval_summary": "<full text of Eval Reader report>",
+    "transcript_source": "/absolute/path/to/transcripts/",
+    "scanning_model": "openai/gpt-4.1-mini",
+    "constraints": {"limit": 50},
+    "artefacts_dir": "/absolute/path/to/artefacts/",
+    "subagent_model": "claude-opus-4-7"
+}
+```
+
+**Input JSON — call 2 (comparative analysis)**:
+```json
+{
+    "mode": "comparative_analysis",
+    "eval_summary": "<full text of Eval Reader report>",
+    "transcript_source": {
+        "condition_A": "/absolute/path/to/logs/run_001/",
+        "condition_B": "/absolute/path/to/logs/run_002/"
+    },
+    "scanning_model": "openai/gpt-4.1-mini",
+    "constraints": {"limit": 100},
+    "artefacts_dir": "/absolute/path/to/artefacts/",
+    "subagent_model": "claude-opus-4-7"
+}
+```
+
+- `mode` is required: `"hypothesis_generation"` or `"comparative_analysis"`
+- `eval_summary` is required: the full text of the Eval Reader's report
+- `transcript_source`: for call 1, a path string; for call 2, a dict with **opaque randomised labels** (condition_A, condition_B) — never condition names or anything that reveals the experimental design
+- `scanning_model`, `constraints`, `artefacts_dir`, `subagent_model` are optional
+- When `artefacts_dir` is provided, outputs go to `<artefacts_dir>/cot_analyst/`
+- **Never pass the hypothesis to this agent in either mode**
+
+**Returns**: Call 1: competing hypotheses with CoT evidence, behavioral predictions, ranking. Call 2: scanner definitions, validation metrics, quantified results. See `cot_analyst_interface_contract.md`.
+
+## Experiment Designer
+
+**Script**: `subagents/experiment_designer/main.py`
+
+**Input JSON**:
+```json
+{
+    "hypothesis": "Removing the deployment-stakes framing reduces sandbagging rate...",
+    "eval_summary": "<full text of Eval Reader report>",
+    "constraints": "Focus on Documentation.md. Propose a parametric sweep over stakes intensity.",
+    "subagent_model": "claude-opus-4-7"
+}
+```
+
+- `hypothesis` and `eval_summary` are required
+- `constraints` is optional; use to focus the designer on specific files or variable types
+- `subagent_model` is optional
+
+**Returns**: Modification sites with binary and parametric condition options, confound assessment, variant dependencies, recommended condition designs. See `experiment_designer_interface_contract.md`.
+
+## Executor
+
+Same as the Experiment Executor above. See that section for input/output format.
+
+## Reviewer
+
+**Script**: `subagents/reviewer/main.py`
+
+**Input JSON**:
+```json
+{
+    "hypothesis": "...",
+    "research_question": "...",
+    "iterations": [
+        {
+            "iteration_name": "stakes_framing_v1",
+            "pre_registration": "If treatment rate >> control: ...",
+            "analyst_findings": "<verbatim CoT Analyst call 2 report>",
+            "investigator_interpretation": "..."
+        }
+    ],
+    "draft_conclusion": "<headline + evidence summary sections of FINDINGS-REPORT.md>",
+    "subagent_model": "claude-opus-4-7"
+}
+```
+
+- All fields except `subagent_model` are required
+- `iterations` is a list — include all iterations, in order
+- `analyst_findings` should be the verbatim Analyst report, not a summary
+- `subagent_model` is optional
+
+**Returns**: Overall verdict (well-supported / partially supported / overreach / insufficient evidence), model incrimination assessment (scheming vs. benign analysis, three-confound check), claim-by-claim assessment with suggested rewrites, pre-registration compliance check, statistical adequacy audit, surviving alternative explanations, required changes before delivery. See `reviewer_interface_contract.md`.
