@@ -42,9 +42,8 @@ git clone <this-repo> prism
 git clone <your-inspect-ai-eval-repo>
 cd <your-inspect-ai-eval-repo>
 
-# Install the scaffold into the target repo. This symlinks the scaffold's
-# files in and updates .gitignore. If the target repo has a devcontainer,
-# it also patches devcontainer.json to mount the scaffold into the container.
+# Install Prism into the target repo. install.sh detects host-vs-container
+# and wires symlinks, .gitignore, and (host only) devcontainer.json accordingly.
 /path/to/prism/install.sh .
 
 # Add your API keys to a `.env` file (loaded automatically by the sub-agents).
@@ -60,7 +59,12 @@ echo "OPENAI_API_KEY=sk-..." >> .env  # optional
 # /path/to/prism/uninstall.sh .
 ```
 
-> **How the scaffold is reached.** The installed symlinks resolve to `/home/inspect/prism`, so the scaffold must be available at that path wherever Claude Code runs. If your target repo uses a devcontainer, `install.sh` wires this up automatically; otherwise (whatever editor or workflow you use) make the scaffold available at that path yourself — e.g. clone or mount it there.
+> **How the scaffold is reached.** `install.sh` picks one of two modes deterministically:
+>
+> - **Host install** (you ran the script outside any container): symlinks point at the in-container path `/opt/prism`. The target's `devcontainer.json` is patched to bind-mount the scaffold there; if the target has no devcontainer, one is scaffolded from `templates/devcontainer.json`. Open the target in your IDE and accept the "Reopen in Container" prompt.
+> - **In-container install** (you ran the script from inside the container Claude Code will use): symlinks point at the scaffold's own path directly, no devcontainer changes are made. Launch Claude Code from inside the target repo (`cd` first, since skill discovery is rooted at the cwd).
+>
+> Mode is detected automatically via `/.dockerenv`, `/run/.containerenv`, and the `REMOTE_CONTAINERS` / `CODESPACES` env vars. To force a mode (e.g. on container runtimes that don't drop these markers), set `PRISM_INSTALL_MODE=in_container|host` before running install.
 
 ## Directory Structure
 
@@ -80,6 +84,8 @@ prism/
 │   └── execute_evals.py           # Parallel eval execution engine
 ├── docs/
 │   └── scaffold-diagram.png       # Architecture diagram
+├── templates/
+│   └── devcontainer.json          # Devcontainer scaffolded into bare targets
 ├── .githooks/                     # Git hooks for scaffold repo
 ├── install.sh                     # Install into target repo
 ├── uninstall.sh                   # Remove from target repo

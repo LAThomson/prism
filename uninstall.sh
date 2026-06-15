@@ -1,15 +1,21 @@
 #!/bin/bash
-# Remove eval-science scaffold symlinks from a target repository.
+# Remove scaffold symlinks from a target repository.
 #
-# Only removes symlinks that point into this scaffold repo.
-# Non-symlink files are never touched.
+# Only removes symlinks that point into this scaffold repo (either via the
+# in-container mount path or via $SCAFFOLD_DIR directly, matching install.sh's
+# two modes). Non-symlink files are never touched.
 #
-# Usage: ./uninstall.sh /path/to/inspect_ai
+# Usage: ./uninstall.sh /path/to/target_repo
 set -euo pipefail
 
 SCAFFOLD_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_DIR="${1:?Usage: ./uninstall.sh /path/to/target_repo}"
-CONTAINER_SCAFFOLD="/home/inspect/prism"
+
+# Derive scaffold name and in-container mount path the same way install.sh
+# does, so uninstall recognises symlinks created by either mode without
+# being told which one was used.
+SCAFFOLD_NAME="$(basename "$SCAFFOLD_DIR")"
+CONTAINER_SCAFFOLD="/opt/$SCAFFOLD_NAME"
 
 if [ ! -d "$TARGET_DIR" ]; then
     echo "Error: $TARGET_DIR is not a directory"
@@ -18,12 +24,16 @@ fi
 
 TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
-echo "Uninstalling eval-science scaffold"
+echo "Uninstalling $SCAFFOLD_NAME scaffold"
 echo "  Scaffold: $SCAFFOLD_DIR"
 echo "  Target:   $TARGET_DIR"
 echo ""
 
 # --- Helper: remove a symlink only if it points into the scaffold ---
+# Accepts symlinks created in either install mode: host-mode symlinks point
+# at $CONTAINER_SCAFFOLD/<rel_path>, in_container-mode symlinks point at
+# $SCAFFOLD_DIR/<rel_path>. Any other target is left alone to avoid removing
+# user-managed symlinks that happen to share a relative path.
 unlink_file() {
     local rel_path="$1"
     local dst="$TARGET_DIR/$rel_path"
@@ -31,11 +41,12 @@ unlink_file() {
     if [ -L "$dst" ]; then
         local link_target
         link_target="$(readlink "$dst")"
-        if echo "$link_target" | grep -q "$CONTAINER_SCAFFOLD"; then
+        if [ "$link_target" = "$CONTAINER_SCAFFOLD/$rel_path" ] \
+           || [ "$link_target" = "$SCAFFOLD_DIR/$rel_path" ]; then
             rm "$dst"
             echo "  Removed: $rel_path"
         else
-            echo "  SKIP (points elsewhere): $rel_path"
+            echo "  SKIP (points elsewhere: $link_target): $rel_path"
         fi
     elif [ -e "$dst" ]; then
         echo "  SKIP (not a symlink): $rel_path"

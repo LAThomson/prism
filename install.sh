@@ -1,18 +1,28 @@
 #!/bin/bash
-# Install the eval-science scaffold into a target repository.
+# Install the scaffold into a target repository.
 #
-# Creates symlinks from the target repo to this scaffold repo,
-# patches devcontainer.json to mount the scaffold into the container,
-# and sets up .gitignore.
+# Creates symlinks from the target repo to this scaffold repo, and (when
+# running outside a container) wires up the devcontainer that will host
+# Claude Code so the symlinks resolve at runtime.
 #
-# Usage: ./install.sh /path/to/inspect_ai
+# Usage: ./install.sh /path/to/target_repo
 set -euo pipefail
 
 SCAFFOLD_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET_DIR="${1:?Usage: ./install.sh /path/to/target_repo}"
 
-# In-container path where the scaffold will be mounted.
-CONTAINER_SCAFFOLD="/home/inspect/prism"
+# Derive scaffold-specific names from the scaffold directory so the install
+# script stays neutral if the repo is renamed or forked. The in-container
+# mount path lives under /opt/ (FHS-standard location for optional add-on
+# software) and uses the scaffold's directory name, so it never accidentally
+# implies it belongs to a particular target eval repo.
+SCAFFOLD_NAME="$(basename "$SCAFFOLD_DIR")"
+CONTAINER_SCAFFOLD="/opt/$SCAFFOLD_NAME"
+
+# Override env var, also derived from the scaffold name so it can't collide
+# with another scaffold's override. E.g. for a scaffold dir named "prism",
+# this resolves to PRISM_INSTALL_MODE; for "my-scaffold" -> MY_SCAFFOLD_INSTALL_MODE.
+MODE_OVERRIDE_VAR="$(echo "$SCAFFOLD_NAME" | tr '[:lower:]-' '[:upper:]_')_INSTALL_MODE"
 
 if [ ! -d "$TARGET_DIR" ]; then
     echo "Error: $TARGET_DIR is not a directory"
@@ -21,10 +31,56 @@ fi
 
 TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
 
-echo "Installing eval-science scaffold"
-echo "  Scaffold: $SCAFFOLD_DIR"
-echo "  Target:   $TARGET_DIR"
-echo "  Container mount: $CONTAINER_SCAFFOLD"
+# --- Mode detection: in_container vs host ---
+# Two install modes:
+#
+#   in_container  Install is running inside the same container Claude Code
+#                 will run in, so $SCAFFOLD_DIR is a stable path that the
+#                 symlinks can point at directly. No devcontainer changes
+#                 needed.
+#
+#   host          Install is running on the host. $SCAFFOLD_DIR is a host-
+#                 only path that won't exist inside a future container, so
+#                 symlinks instead point at $CONTAINER_SCAFFOLD and the
+#                 target's devcontainer is patched (or scaffolded from a
+#                 template if missing) to bind-mount the scaffold there.
+#
+# Auto-detection uses well-known signals: /.dockerenv (Docker, incl. VS Code
+# devcontainers and Codespaces) and /run/.containerenv (Podman). Falls back
+# to env vars Codespaces/Dev Containers set. For other container runtimes
+# that don't drop these markers, set $MODE_OVERRIDE_VAR=in_container|host
+# explicitly.
+detect_inside_container() {
+    [ -f /.dockerenv ] && return 0
+    [ -f /run/.containerenv ] && return 0
+    [ -n "${REMOTE_CONTAINERS:-}" ] && return 0
+    [ -n "${CODESPACES:-}" ] && return 0
+    return 1
+}
+
+MODE="${!MODE_OVERRIDE_VAR:-auto}"
+if [ "$MODE" = "auto" ]; then
+    if detect_inside_container; then
+        MODE="in_container"
+    else
+        MODE="host"
+    fi
+fi
+
+case "$MODE" in
+    in_container) SCAFFOLD_SRC="$SCAFFOLD_DIR" ;;
+    host)         SCAFFOLD_SRC="$CONTAINER_SCAFFOLD" ;;
+    *)
+        echo "Error: $MODE_OVERRIDE_VAR must be one of: auto, in_container, host (got: $MODE)"
+        exit 1
+        ;;
+esac
+
+echo "Installing $SCAFFOLD_NAME scaffold"
+echo "  Scaffold:     $SCAFFOLD_DIR"
+echo "  Target:       $TARGET_DIR"
+echo "  Mode:         $MODE"
+echo "  Symlinks to:  $SCAFFOLD_SRC"
 echo ""
 
 # In-target marker tracking symlinked directories that install.sh promoted
@@ -81,10 +137,10 @@ ensure_local_dir() {
     fi
 }
 
-# --- Helper: create a symlink pointing to the in-container path ---
+# --- Helper: create a symlink pointing at the mode-appropriate scaffold src ---
 link_file() {
     local rel_path="$1"
-    local src="$CONTAINER_SCAFFOLD/$rel_path"
+    local src="$SCAFFOLD_SRC/$rel_path"
     local dst="$TARGET_DIR/$rel_path"
     local dst_dir
     dst_dir="$(dirname "$dst")"
@@ -156,7 +212,7 @@ if [ -f "$TARGET_DIR/.gitignore" ] && [ ! -f "$TARGET_DIR/.gitignore.pre-scaffol
 fi
 GITIGNORE_ENTRIES=(
     ""
-    "# Eval Science Scaffold (symlinks managed by prism/install.sh)"
+    "# $SCAFFOLD_NAME scaffold (symlinks managed by $SCAFFOLD_NAME/install.sh)"
     "subagents/"
     "scripts/execute_evals.py"
     ".claude/docs/analyst_delegation_guide.md"
@@ -195,73 +251,59 @@ else
     echo "  SKIP: scaffold directory is not a git repo"
 fi
 
-# --- Patch devcontainer.json to mount the scaffold repo ---
+# --- Devcontainer wiring (host mode only) ---
+# Only relevant when we're installing on the host and the symlinks point at
+# $CONTAINER_SCAFFOLD: we need a devcontainer that will mount the scaffold
+# there. In in_container mode the symlinks already point at $SCAFFOLD_DIR
+# directly, so no devcontainer changes are needed.
 DEVCONTAINER="$TARGET_DIR/.devcontainer/devcontainer.json"
 DEVCONTAINER_PATCHED=0
-if [ -f "$DEVCONTAINER" ]; then
-    DEVCONTAINER_PATCHED=1
-    echo ""
-    echo "Patching devcontainer.json..."
-
-    # Backup original devcontainer.json before patching.
-    if [ ! -f "$DEVCONTAINER.pre-scaffold" ]; then
-        cp "$DEVCONTAINER" "$DEVCONTAINER.pre-scaffold"
-        echo "  Backed up devcontainer.json to devcontainer.json.pre-scaffold"
+if [ "$MODE" = "host" ]; then
+    # If the target has no devcontainer, drop in the scaffold's template so
+    # the same patching code can then wire in the mount. Keeps the after-
+    # install state uniform regardless of what the target shipped with.
+    if [ ! -f "$DEVCONTAINER" ]; then
+        TEMPLATE="$SCAFFOLD_DIR/templates/devcontainer.json"
+        if [ -f "$TEMPLATE" ]; then
+            mkdir -p "$TARGET_DIR/.devcontainer"
+            cp "$TEMPLATE" "$DEVCONTAINER"
+            echo ""
+            echo "Scaffolded devcontainer.json from $SCAFFOLD_NAME template"
+        else
+            echo ""
+            echo "  WARNING: target has no .devcontainer/devcontainer.json and the"
+            echo "  $SCAFFOLD_NAME template at $TEMPLATE doesn't exist yet."
+            echo "  Devcontainer setup skipped. You can either:"
+            echo "    - add a devcontainer.json to the target manually, then re-run install,"
+            echo "    - or set $MODE_OVERRIDE_VAR=in_container if you're running inside the"
+            echo "      same container Claude Code will use (symlinks will then point at"
+            echo "      $SCAFFOLD_DIR directly)."
+        fi
     fi
 
-    # Compute relative path from target repo to scaffold repo.
-    # Use python3 for portability (macOS realpath lacks --relative-to).
-    REL_PATH="$(python3 -c "import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$SCAFFOLD_DIR" "$TARGET_DIR")"
-    MOUNT_SOURCE="\${localWorkspaceFolder}/$REL_PATH"
+    if [ -f "$DEVCONTAINER" ]; then
+        DEVCONTAINER_PATCHED=1
+        echo ""
+        echo "Patching devcontainer.json..."
 
-    # Use python3 to safely add the mount entry if not already present.
-    python3 -c "
-import json, sys
+        # Backup original devcontainer.json before patching.
+        if [ ! -f "$DEVCONTAINER.pre-scaffold" ]; then
+            cp "$DEVCONTAINER" "$DEVCONTAINER.pre-scaffold"
+            echo "  Backed up devcontainer.json to devcontainer.json.pre-scaffold"
+        fi
 
-devcontainer_path = sys.argv[1]
-mount_source = sys.argv[2]
-mount_target = sys.argv[3]
+        # Compute relative path from target repo to scaffold repo.
+        # Use python3 for portability (macOS realpath lacks --relative-to).
+        REL_PATH="$(python3 -c "import os, sys; print(os.path.relpath(sys.argv[1], sys.argv[2]))" "$SCAFFOLD_DIR" "$TARGET_DIR")"
+        MOUNT_SOURCE="\${localWorkspaceFolder}/$REL_PATH"
 
-with open(devcontainer_path) as f:
-    config = json.load(f)
-
-mounts = config.setdefault('mounts', [])
-
-# Check if mount already exists.
-mount_present = any(
-    isinstance(m, dict) and m.get('target') == mount_target
-    for m in mounts
-)
-
-if mount_present:
-    print('  Already present: scaffold mount in devcontainer.json')
-else:
-    mounts.append({
-        'source': mount_source,
-        'target': mount_target,
-        'type': 'bind'
-    })
-    print('  Added scaffold mount to devcontainer.json')
-
-# --- Add Claude Code devcontainer feature ---
-CLAUDE_FEATURE = 'ghcr.io/anthropics/devcontainer-features/claude-code:latest'
-features = config.setdefault('features', {})
- 
-if CLAUDE_FEATURE in features:
-    print('  Already present: Claude Code feature in devcontainer.json')
-else:
-    features[CLAUDE_FEATURE] = {}
-    print('  Added Claude Code feature to devcontainer.json')
-
-with open(devcontainer_path, 'w') as f:
-    json.dump(config, f, indent=2)
-    f.write('\n')
-
-" "$DEVCONTAINER" "$MOUNT_SOURCE" "$CONTAINER_SCAFFOLD"
-else
-    echo ""
-    echo "  No .devcontainer/devcontainer.json found — skipping container setup."
-    echo "  If using a devcontainer, manually mount $SCAFFOLD_DIR at $CONTAINER_SCAFFOLD"
+        # Delegate the actual JSON edit to a Python script in scripts/.
+        # The script handles JSONC input (// and /* */ comments are stripped
+        # before parsing) so real-world devcontainer.json files don't trip
+        # the patcher, and is idempotent — re-running install is safe.
+        python3 "$SCAFFOLD_DIR/scripts/_patch_devcontainer.py" \
+            "$DEVCONTAINER" "$MOUNT_SOURCE" "$CONTAINER_SCAFFOLD"
+    fi
 fi
 
 # --- Tell git to ignore local changes to patched upstream files ---
@@ -284,13 +326,18 @@ echo "Next steps:"
 step=1
 echo "  $step. Ensure Claude Code is installed (https://claude.com/product/claude-code)"
 step=$((step + 1))
-if [ "$DEVCONTAINER_PATCHED" = "1" ]; then
+if [ "$MODE" = "in_container" ]; then
+    echo "  $step. Launch Claude Code from inside the target repo (cd \"$TARGET_DIR\"),"
+    echo "      since skill discovery is rooted at the current working directory"
+    step=$((step + 1))
+elif [ "$DEVCONTAINER_PATCHED" = "1" ]; then
     echo "  $step. Reopen the target repo in its devcontainer so the scaffold mount"
     echo "      takes effect (e.g. VS Code's \"Reopen in Container\", or your tool's equivalent)"
     step=$((step + 1))
 else
     echo "  $step. Make the scaffold available at $CONTAINER_SCAFFOLD wherever Claude Code"
-    echo "      runs (the installed symlinks resolve to that path)"
+    echo "      runs (the installed symlinks resolve to that path), or re-run install once"
+    echo "      a devcontainer is in place"
     step=$((step + 1))
 fi
 echo "  $step. Add your API keys to a .env file in the target repo: ANTHROPIC_API_KEY"
