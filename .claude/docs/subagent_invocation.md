@@ -29,6 +29,15 @@ Do not confuse `subagent_model` with two other model fields:
 
 The `subagent_model` is an infrastructure choice; the others are part of the experiment. They are independent and may differ.
 
+### Optional: `subagent_thinking` (all agents)
+
+Every agent's input JSON also accepts an optional `subagent_thinking` field — **the extended-thinking configuration the sub-agent itself runs with**. If omitted, the sub-agent uses the scaffold default of `{"type": "adaptive"}`, which lets the model scale its own reasoning depth to the task (so the Executor's mechanical work draws little, while the Explorer and Analyst draw more). Override it to:
+
+- **disable thinking** — `{"type": "disabled"}`; or
+- set a **fixed budget** — `{"type": "enabled", "budget_tokens": 16000}`, e.g. when running a sub-agent on a `subagent_model` that does not support adaptive thinking (adaptive requires Opus 4.6+).
+
+Like `subagent_model`, this is an infrastructure choice independent of the experiment. The two pair naturally: if you override `subagent_model` to a model without adaptive support, override `subagent_thinking` alongside it.
+
 ## Environment Explorer
 
 **Script**: `subagents/environment_explorer/main.py`
@@ -40,13 +49,15 @@ The `subagent_model` is an infrastructure choice; the others are part of the exp
     "experiment_description": "Testing whether X affects Y...",
     "environment_path": "/absolute/path/to/eval/environment",
     "constraints": "Focus on system prompt and scoring; skip the scaffold directory.",
-    "subagent_model": "claude-opus-4-7"
+    "subagent_model": "claude-opus-4-7",
+    "subagent_thinking": {"type": "adaptive"}
 }
 ```
 
 - `environment_path` must be an existing directory
 - `constraints` is optional; free-form string passed through to the Explorer to shape or narrow exploration
 - `subagent_model` is optional; the model the Explorer agent runs on (see General Pattern above)
+- `subagent_thinking` is optional; the Explorer's extended-thinking config (see General Pattern above)
 
 **Returns**: Structured markdown report. See `explorer_interface_contract.md` for the full request and report format.
 
@@ -75,13 +86,15 @@ The `subagent_model` is an infrastructure choice; the others are part of the exp
         "epochs": 1,
         "skip_preflight": false
     },
-    "subagent_model": "claude-opus-4-7"
+    "subagent_model": "claude-opus-4-7",
+    "subagent_thinking": {"type": "adaptive"}
 }
 ```
 
 - `experiment_dir` must be an existing directory
 - `overrides` is optional; supported keys: `sample_limit`, `epochs`, `skip_preflight`, `max_parallel`, `max_connections`, `runs_per_condition`
 - `subagent_model` is optional; the model the Executor agent runs on. **Distinct from `models`**, which are the eval's target models — `subagent_model` has no provider prefix (e.g. `claude-opus-4-7`), whereas `models` entries do (e.g. `anthropic/claude-sonnet-4-5-20250929`)
+- `subagent_thinking` is optional; the Executor's extended-thinking config (see General Pattern above)
 
 **Returns**: Structured markdown report. See `executor_interface_contract.md` for the full request and report format.
 
@@ -100,7 +113,8 @@ The `subagent_model` is an infrastructure choice; the others are part of the exp
     "scanning_model": "openai/gpt-4.1-mini",
     "constraints": {"limit": 100},
     "artefacts_dir": "/absolute/path/to/investigation/artefacts",
-    "subagent_model": "claude-opus-4-7"
+    "subagent_model": "claude-opus-4-7",
+    "subagent_thinking": {"type": "adaptive"}
 }
 ```
 
@@ -109,6 +123,7 @@ The `subagent_model` is an infrastructure choice; the others are part of the exp
 - Use **opaque condition labels** (condition_A, condition_B) — randomise the mapping to conditions
 - `scanning_model`, `constraints`, and `artefacts_dir` are optional
 - `subagent_model` is optional; the model the Analyst agent runs on. **Distinct from `scanning_model`**, which is the model Scout uses for LLM scanners — `subagent_model` changes which model *does the analysis*, `scanning_model` changes which model the scanners *call*
+- `subagent_thinking` is optional; the Analyst's extended-thinking config (see General Pattern above)
 - When `artefacts_dir` is provided, the analyst writes all file outputs to `<artefacts_dir>/analyst/`
 
 **Returns**: Scanner definitions, validation metrics, quantified results (per-condition detection rates), scan results path, transcript exclusions, transcript excerpts, additional observations. See `analyst_interface_contract.md` for the full report format.

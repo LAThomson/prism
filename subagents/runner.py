@@ -10,6 +10,7 @@ from claude_agent_sdk import (
     HookMatcher,
     ProcessError,
     ResultMessage,
+    ThinkingConfig,
     query,
 )
 
@@ -19,7 +20,25 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # `subagent_model` input field. Kept as a single default so the override is the
 # only thing that ever varies (e.g. a less refusal-prone model on a
 # dangerous-capability eval, or a cheaper/weaker model on the user's request).
-DEFAULT_MODEL = "claude-opus-4-6"
+# Defaults to the most capable Opus tier: per-token cost is equal across Opus
+# models, so there is no reason to run the sub-agents on a weaker one — the extra
+# capability sharpens the Explorer's site reasoning and the Analyst's scanner /
+# stats work, which is where investigation quality is won. (A Sonnet-class model
+# is the natural cost/speed downgrade via `subagent_model` if ever wanted.)
+DEFAULT_MODEL = "claude-opus-4-8"
+
+# Extended-thinking config every sub-agent runs with unless the invocation
+# overrides it via the `subagent_thinking` input field. Adaptive thinking lets
+# the model scale reasoning depth to the task on its own — so the Explorer's
+# site reasoning and the Analyst's scanner/stats work draw deeply, while the
+# Executor's mechanical "run these conditions" work naturally draws little.
+# Adaptive is supported on Opus 4.6+ (so it holds for the 4.8 default and any
+# reasonable `subagent_model` override) and is in fact the CLI default there; we
+# set it explicitly so the behaviour is pinned in the repo rather than left to
+# the CLI/model version, and so it can be overridden per invocation (e.g.
+# {"type": "disabled"} or {"type": "enabled", "budget_tokens": N}) the same way
+# `subagent_model` is — e.g. when overriding to a model without adaptive support.
+DEFAULT_THINKING: ThinkingConfig = {"type": "adaptive"}
 
 _MEMORY_INSTRUCTIONS = """\
 ## Agent Memory
@@ -144,6 +163,7 @@ async def run_agent(
     memory_file: str | None = None,
     restrict_writes_to_memory: bool = True,
     model: str | None = None,
+    thinking: ThinkingConfig | None = None,
 ) -> str:
     """Run an Agent SDK agent and return its output.
 
@@ -168,6 +188,12 @@ async def run_agent(
             input field) to override the default — e.g. a less refusal-prone
             model on a dangerous-capability eval, or a cheaper model on
             request.
+        thinking: Extended-thinking configuration for this sub-agent. If None,
+            falls back to DEFAULT_THINKING (adaptive). Set per-invocation (via
+            the `subagent_thinking` input field) to override — e.g.
+            {"type": "disabled"} to switch thinking off, or
+            {"type": "enabled", "budget_tokens": N} for a fixed budget on a
+            model that doesn't support adaptive thinking.
 
     Returns:
         The agent's output as a string.
@@ -208,6 +234,7 @@ async def run_agent(
 
     options = ClaudeAgentOptions(
         model=model or DEFAULT_MODEL,
+        thinking=thinking or DEFAULT_THINKING,
         system_prompt=system_prompt,
         allowed_tools=allowed_tools,
         disallowed_tools=disallowed_tools,

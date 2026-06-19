@@ -58,4 +58,5 @@ async def run_transcript_analyst(cwd: str | None = None, **data: Any) -> str:
         memory_file=None,
         restrict_writes_to_memory=False,
         model=data.get("subagent_model"),
+        thinking=data.get("subagent_thinking"),
     )
