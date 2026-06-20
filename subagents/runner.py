@@ -55,6 +55,19 @@ The file will be blocked if you attempt to remove or rewrite existing content.
 """
 
 
+_FOREGROUND_INSTRUCTIONS = """
+
+## Foreground execution only
+
+Run every command in the foreground and wait for it to finish before \
+continuing. Never background a task — do not set `run_in_background: true`, \
+and do not use a trailing `&` or `nohup`. Long-running commands (evals, \
+scripts) are expected; run them in the foreground and wait. Backgrounding \
+breaks the scaffold's assumption that a step has completed, and its outputs \
+exist, before the next step begins.
+"""
+
+
 def _build_hooks(
     agent_name: str,
     restricted_files: dict[str, str],
@@ -141,14 +154,32 @@ def _build_hooks(
 
         write_hooks.append(check_write_access)
 
-    if not read_hooks and not write_hooks:
-        return None
+    # --- Bash hook: forbid backgrounding so each step runs to completion ---
+    # Applies to every sub-agent, and is scoped to this Agent SDK query only, so
+    # it never affects the orchestrator or any other Claude Code session.
+    async def check_no_background(
+        input_data: dict, tool_use_id: str, context: dict
+    ) -> dict:
+        if input_data.get("tool_input", {}).get("run_in_background"):
+            return {
+                "decision": "block",
+                "reason": (
+                    f"[{agent_name}] Backgrounding is disabled for sub-agents. "
+                    "Run the command in the foreground and wait for it to "
+                    "finish; long-running commands are expected."
+                ),
+            }
+        return {}
+
+    bash_hooks = [check_no_background]
 
     matchers = []
     if read_hooks:
         matchers.append(HookMatcher(matcher="Read", hooks=read_hooks))
     if write_hooks:
         matchers.append(HookMatcher(matcher="Write", hooks=write_hooks))
+    if bash_hooks:
+        matchers.append(HookMatcher(matcher="Bash", hooks=bash_hooks))
     return {"PreToolUse": matchers}
 
 
@@ -202,6 +233,11 @@ async def run_agent(
         RuntimeError: If the agent produces no output or the SDK fails.
     """
     working_dir = cwd or _PROJECT_ROOT
+
+    # Append the shared foreground-execution rule to every sub-agent's system
+    # prompt (mirrors the _MEMORY_INSTRUCTIONS pattern): sub-agents must run
+    # tasks in the foreground so each step completes before the next begins.
+    system_prompt = system_prompt + _FOREGROUND_INSTRUCTIONS
 
     # --- Memory injection ---
     memory_abs_path: str | None = None

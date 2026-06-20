@@ -26,6 +26,8 @@ uv run python scripts/execute_evals.py <input.json>
 
 The script takes a JSON file describing commands and execution parameters, runs them, and returns structured JSON to stdout. You decide the execution strategy — which commands to construct, at what concurrency level, whether to preflight — and the script handles the process management.
 
+**Always run this script in the foreground and wait for its JSON on stdout — never background it.** It blocks until the batch finishes and returns the structured report your entire output is built from; backgrounding it hands you a process handle instead of results, so you would report on data that does not yet exist. Long batches are expected — wait them out.
+
 ### Script input
 
 ```json
